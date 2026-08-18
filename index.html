@@ -335,6 +335,19 @@ async function saveIndex(){
   await apiPost({action:'set', key:'wecamp:index', value: JSON.stringify(STATE.index)});
 }
 
+// Atomic add/update of one entry in the shared index — safe when several
+// area managers save at the same time (no risk of overwriting each other).
+async function upsertIndexEntry(entry){
+  const res = await apiPost({action:'index_upsert', key:'wecamp:index', entry});
+  if(res && res.index) STATE.index = res.index;
+  return res;
+}
+async function removeIndexEntry(id){
+  const res = await apiPost({action:'index_remove', key:'wecamp:index', id});
+  if(res && res.index) STATE.index = res.index;
+  return res;
+}
+
 async function saveAuditRecord(record){
   await apiPost({action:'set', key:'wecamp:audit:'+record.id, value: JSON.stringify(record)});
 }
@@ -596,11 +609,15 @@ function renderHeader(){
     </div>
   `;
   header.querySelectorAll('.tab').forEach(btn=>{
-    btn.onclick = ()=>{
+    btn.onclick = async ()=>{
       STATE.tab = btn.dataset.tab;
       render();
       window.scrollTo({top:0, behavior:'instant'});
       if((STATE.tab==='audit' && !STATE.camping) || STATE.tab==='drafts') refreshDrafts();
+      if(STATE.tab==='dashboard'){
+        await loadIndex();
+        if(STATE.tab==='dashboard') render();
+      }
     };
   });
   return header;
@@ -647,7 +664,12 @@ function renderDashboard(){
 
   const card = document.createElement('div');
   card.className='card';
-  card.innerHTML = `<div class="card-title">Mapa de cumplimiento por camping y área</div>`;
+  card.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <div class="card-title" style="margin:0;">Mapa de cumplimiento por camping y área</div>
+      <button class="btn btn-ghost" id="refreshDashboardBtn" style="width:auto; padding:7px 12px; font-size:12px;">🔄 Actualizar</button>
+    </div>
+  `;
 
   const matrixWrap = document.createElement('div');
   matrixWrap.className='matrix-wrap';
@@ -717,6 +739,12 @@ function renderDashboard(){
   setTimeout(()=>{
     const gbtn = document.getElementById('globalExportBtn');
     if(gbtn) gbtn.onclick = ()=> exportGlobalExcel(gbtn);
+    const refreshBtn = document.getElementById('refreshDashboardBtn');
+    if(refreshBtn) refreshBtn.onclick = async ()=>{
+      refreshBtn.disabled = true; refreshBtn.textContent = '…';
+      await loadIndex();
+      if(STATE.tab==='dashboard') render();
+    };
   }, 0);
 
   const note = document.createElement('div');
@@ -994,8 +1022,7 @@ async function deleteAuditRecord(r){
   if(!ok) return;
   try{
     await apiPost({action:'delete', key:'wecamp:audit:'+r.id});
-    STATE.index = STATE.index.filter(e=>e.id!==r.id);
-    await saveIndex();
+    await removeIndexEntry(r.id);
     STATE.modal = null;
     toast('Auditoría borrada');
     render();
@@ -1026,10 +1053,9 @@ async function saveEditedAudit(r, qs, editAnswers){
 
   await saveAuditRecord(updated);
 
-  const idx = STATE.index.findIndex(e=>e.id===r.id);
-  if(idx>-1){
-    STATE.index[idx] = Object.assign({}, STATE.index[idx], {si, no, na, total: qs.length});
-    await saveIndex();
+  const existing = STATE.index.find(e=>e.id===r.id);
+  if(existing){
+    await upsertIndexEntry(Object.assign({}, existing, {si, no, na, total: qs.length}));
   }
 
   toast('Cambios guardados ✓');
@@ -1103,8 +1129,7 @@ async function submitAudit(){
 
     await saveAuditRecord(record);
 
-    STATE.index.push({ id:record.id, camping:record.camping, area:record.area, manager:record.manager, ts:record.ts, si, no, na, total: qs.length });
-    await saveIndex();
+    await upsertIndexEntry({ id:record.id, camping:record.camping, area:record.area, manager:record.manager, ts:record.ts, si, no, na, total: qs.length });
     await clearDraft(STATE.camping, STATE.area);
 
     toast('Auditoría guardada ✓');
@@ -1289,6 +1314,16 @@ function renderModal(){
   await loadIndex();
   await refreshDrafts();
   render();
+
+  // auto-refresh the dashboard periodically so audits saved by other area
+  // managers show up without needing a manual reload, but never while
+  // someone is mid-questionnaire (would disrupt their in-progress answers)
+  setInterval(async ()=>{
+    if(STATE.tab==='dashboard' && !STATE.modal){
+      await loadIndex();
+      if(STATE.tab==='dashboard' && !STATE.modal) render();
+    }
+  }, 20000);
 })();
 
 </script>
