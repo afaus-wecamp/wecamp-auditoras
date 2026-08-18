@@ -352,6 +352,26 @@ async function saveAuditRecord(record){
   await apiPost({action:'set', key:'wecamp:audit:'+record.id, value: JSON.stringify(record)});
 }
 
+// Best-effort mirror into a human-readable "Respuestas" tab in the Google
+// Sheet, so the owner can open it directly without using the app. Never
+// blocks or fails the main save if this particular call has an issue.
+async function mirrorAnswersToSheet(record){
+  try{
+    await apiPost({
+      action: 'save_answers_sheet',
+      recordId: record.id,
+      camping: record.camping,
+      area: record.area,
+      manager: record.manager,
+      date: new Date(record.ts).toLocaleDateString('es-ES'),
+      answers: record.answers.map(a=>({ n:a.n, categoria:a.categoria, pregunta:a.pregunta, respuesta: respLabel(a.respuesta), comentario: a.comentario||'' }))
+    });
+  }catch(e){ console.error('Error escribiendo espejo en Respuestas:', e); }
+}
+async function removeAnswersFromSheet(recordId){
+  try{ await apiPost({action:'delete_answers_sheet', recordId}); }catch(e){}
+}
+
 async function fetchAuditRecord(id){
   try{
     const res = await apiGet({action:'get', key:'wecamp:audit:'+id});
@@ -1023,6 +1043,7 @@ async function deleteAuditRecord(r){
   try{
     await apiPost({action:'delete', key:'wecamp:audit:'+r.id});
     await removeIndexEntry(r.id);
+    await removeAnswersFromSheet(r.id);
     STATE.modal = null;
     toast('Auditoría borrada');
     render();
@@ -1052,6 +1073,7 @@ async function saveEditedAudit(r, qs, editAnswers){
   });
 
   await saveAuditRecord(updated);
+  await mirrorAnswersToSheet(updated);
 
   const existing = STATE.index.find(e=>e.id===r.id);
   if(existing){
@@ -1128,6 +1150,7 @@ async function submitAudit(){
     };
 
     await saveAuditRecord(record);
+    await mirrorAnswersToSheet(record);
 
     await upsertIndexEntry({ id:record.id, camping:record.camping, area:record.area, manager:record.manager, ts:record.ts, si, no, na, total: qs.length });
     await clearDraft(STATE.camping, STATE.area);
