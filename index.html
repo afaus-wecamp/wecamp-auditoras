@@ -857,6 +857,9 @@ function renderAuditFlow(){
     if(exitBtn) exitBtn.onclick = openExitConfirm;
   }, 0);
 
+  const progressFillEl = progWrap.querySelector('.progress-fill');
+  const progressCountEl = progWrap.querySelectorAll('.progress-text')[1].querySelector('span');
+
   let lastCat = null;
   qs.forEach(q=>{
     if(q.categoria !== lastCat){
@@ -866,7 +869,7 @@ function renderAuditFlow(){
       wrap.appendChild(h);
       lastCat = q.categoria;
     }
-    wrap.appendChild(renderQuestionCard(q));
+    wrap.appendChild(renderQuestionCard(q, updateProgressUI));
   });
 
   const backBtn = document.createElement('button');
@@ -883,16 +886,21 @@ function renderAuditFlow(){
     <button class="btn btn-primary" id="submitAuditBtn" ${canSubmit?'':'disabled'}>Guardar auditoría (${answeredCount}/${qs.length})</button>
   </div>`;
   wrap.appendChild(floating);
+  const submitBtnEl = floating.querySelector('#submitAuditBtn');
+  submitBtnEl.onclick = submitAudit;
 
-  setTimeout(()=>{
-    const btn = document.getElementById('submitAuditBtn');
-    if(btn) btn.onclick = submitAudit;
-  }, 0);
+  function updateProgressUI(){
+    const count = qs.filter(q=>STATE.answers[q.n] && STATE.answers[q.n].respuesta).length;
+    progressFillEl.style.width = (qs.length?(count/qs.length*100):0)+'%';
+    progressCountEl.textContent = `${count} de ${qs.length} respondidas`;
+    submitBtnEl.textContent = `Guardar auditoría (${count}/${qs.length})`;
+    submitBtnEl.disabled = count===0;
+  }
 
   return wrap;
 }
 
-function renderQuestionCard(q){
+function renderQuestionCard(q, onChange){
   const card = document.createElement('div');
   const current = STATE.answers[q.n] || {};
   card.className = 'q-card'+(current.respuesta?' answered':'');
@@ -916,7 +924,11 @@ function renderQuestionCard(q){
       if(!STATE.answers[q.n]) STATE.answers[q.n] = {};
       STATE.answers[q.n].respuesta = (STATE.answers[q.n].respuesta===v) ? null : v;
       scheduleDraftSave();
-      render();
+      const cur = STATE.answers[q.n].respuesta;
+      card.querySelectorAll('.pill').forEach(pp=>pp.classList.remove('sel'));
+      if(cur){ card.querySelector(`.pill[data-v="${cur}"]`).classList.add('sel'); }
+      card.classList.toggle('answered', !!cur);
+      if(onChange) onChange();
     };
   });
   const toggleBtn = card.querySelector('.comment-toggle');
@@ -957,7 +969,10 @@ function renderEditableQuestionCard(q, editAnswers){
       const v = p.dataset.v;
       if(!editAnswers[q.n]) editAnswers[q.n] = {};
       editAnswers[q.n].respuesta = (editAnswers[q.n].respuesta===v) ? null : v;
-      render();
+      const cur = editAnswers[q.n].respuesta;
+      card.querySelectorAll('.pill').forEach(pp=>pp.classList.remove('sel'));
+      if(cur){ card.querySelector(`.pill[data-v="${cur}"]`).classList.add('sel'); }
+      card.classList.toggle('answered', !!cur);
     };
   });
   const toggleBtn = card.querySelector('.comment-toggle');
