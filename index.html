@@ -323,6 +323,18 @@ async function apiPost(body){
   return data;
 }
 
+// Same as apiPost, but retries once after a short pause — used for the
+// operations that share a lock on the backend (index and Respuestas sheet),
+// in case two area managers hit it in the exact same instant.
+async function apiPostWithRetry(body, delayMs){
+  try{
+    return await apiPost(body);
+  }catch(e){
+    await new Promise(r=>setTimeout(r, delayMs || 1000));
+    return await apiPost(body);
+  }
+}
+
 // ===================== STORAGE =====================
 async function loadIndex(){
   try{
@@ -338,12 +350,12 @@ async function saveIndex(){
 // Atomic add/update of one entry in the shared index — safe when several
 // area managers save at the same time (no risk of overwriting each other).
 async function upsertIndexEntry(entry){
-  const res = await apiPost({action:'index_upsert', key:'wecamp:index', entry});
+  const res = await apiPostWithRetry({action:'index_upsert', key:'wecamp:index', entry});
   if(res && res.index) STATE.index = res.index;
   return res;
 }
 async function removeIndexEntry(id){
-  const res = await apiPost({action:'index_remove', key:'wecamp:index', id});
+  const res = await apiPostWithRetry({action:'index_remove', key:'wecamp:index', id});
   if(res && res.index) STATE.index = res.index;
   return res;
 }
@@ -357,7 +369,7 @@ async function saveAuditRecord(record){
 // blocks or fails the main save if this particular call has an issue.
 async function mirrorAnswersToSheet(record){
   try{
-    await apiPost({
+    await apiPostWithRetry({
       action: 'save_answers_sheet',
       recordId: record.id,
       camping: record.camping,
@@ -369,7 +381,7 @@ async function mirrorAnswersToSheet(record){
   }catch(e){ console.error('Error escribiendo espejo en Respuestas:', e); }
 }
 async function removeAnswersFromSheet(recordId){
-  try{ await apiPost({action:'delete_answers_sheet', recordId}); }catch(e){}
+  try{ await apiPostWithRetry({action:'delete_answers_sheet', recordId}); }catch(e){}
 }
 
 async function fetchAuditRecord(id){
