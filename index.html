@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>WECAMP · Auditorías</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg: #12201A;
+  --bg-alt: #0D1712;
+  --surface: #1B2C24;
+  --surface-2: #22392E;
+  --line: #2E4437;
+  --text: #F1EFE6;
+  --text-dim: #A9BBAF;
+  --text-faint: #6E8579;
+  --moss: #7FA65A;
+  --moss-bright: #9AC96D;
+  --rust: #C4573D;
+  --rust-bright: #DB6B4E;
+  --amber: #D9A441;
+  --amber-bright: #EFC468;
+  --focus: #EFC468;
+  --radius: 14px;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height:100vh;
+  -webkit-font-smoothing: antialiased;
+}
+::selection{ background: var(--amber); color: #14201A; }
+button{ font-family: inherit; cursor:pointer; }
+:focus-visible{ outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* topographic backdrop */
+.topo-bg{
+  position: fixed; inset:0; z-index:-1; opacity:0.16; pointer-events:none;
+  background-image:
+    repeating-radial-gradient(circle at 12% 18%, transparent 0, transparent 26px, rgba(127,166,90,0.5) 27px, transparent 28px, transparent 54px),
+    repeating-radial-gradient(circle at 85% 75%, transparent 0, transparent 34px, rgba(217,164,65,0.35) 35px, transparent 36px, transparent 70px);
+  background-color: var(--bg);
+}
+
+#root{ max-width: 880px; margin:0 auto; padding-bottom: 120px; }
+
+/* HEADER */
+header.top{
+  position: sticky; top:0; z-index: 20;
+  background: linear-gradient(180deg, var(--bg-alt) 0%, rgba(13,23,18,0.94) 82%, rgba(13,23,18,0));
+  padding: 18px 18px 10px;
+  backdrop-filter: blur(6px);
+}
+.wordmark{
+  font-family: var(--font-display); font-weight:800; font-size: 20px; letter-spacing:0.02em;
+  display:flex; align-items:baseline; gap:8px; color: var(--text);
+}
+.wordmark .dot{ color: var(--amber-bright); }
+.wordmark small{ font-family: var(--font-mono); font-weight:500; font-size:11px; color:var(--text-faint); letter-spacing:0.08em; text-transform:uppercase; }
+
+.tabs{ display:flex; gap:6px; margin-top:14px; background: var(--surface); border:1px solid var(--line); border-radius: 999px; padding:4px; }
+.tab{
+  flex:1; text-align:center; padding:9px 6px; border-radius:999px; border:none; background:transparent;
+  color: var(--text-dim); font-weight:600; font-size:12.5px; letter-spacing:0.01em;
+  transition: background .15s ease, color .15s ease; white-space:nowrap;
+}
+.tab.active{ background: var(--moss); color:#0E1B12; }
+.tab-badge{
+  display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px;
+  background: var(--amber-bright); color:#2A1E04; border-radius:999px; font-family:var(--font-mono); font-size:10.5px; font-weight:700;
+  vertical-align:middle; margin-left:2px;
+}
+
+main{ padding: 6px 18px 40px; }
+
+/* CARD */
+.card{
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 14px;
+}
+.card-title{ font-family: var(--font-display); font-weight:700; font-size:15px; color:var(--text); margin:0 0 10px; letter-spacing:0.01em; }
+
+/* DASHBOARD SUMMARY */
+.summary-row{ display:flex; gap:10px; margin-bottom:14px; }
+.stat{
+  flex:1; background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 12px; text-align:left;
+}
+.stat .num{ font-family: var(--font-mono); font-size: 24px; font-weight:600; color: var(--amber-bright); line-height:1; }
+.stat .label{ font-size:11px; color: var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; margin-top:6px; }
+
+/* HEATMAP TABLE */
+.matrix-wrap{ overflow-x:auto; border-radius: var(--radius); border:1px solid var(--line); }
+table.matrix{ border-collapse: collapse; width:100%; min-width: 720px; background: var(--surface); }
+table.matrix th, table.matrix td{ padding:0; }
+table.matrix thead th{
+  position: sticky; top:0; background: var(--surface-2); z-index:5;
+  font-family: var(--font-mono); font-size:10.5px; color: var(--text-dim); font-weight:600;
+  padding: 10px 6px; text-align:center; letter-spacing:0.02em; border-bottom:1px solid var(--line);
+}
+table.matrix thead th.corner{ text-align:left; padding-left:14px; position:sticky; left:0; z-index:6; background: var(--surface-2); }
+table.matrix tbody th{
+  position:sticky; left:0; background: var(--surface); z-index:4;
+  text-align:left; padding:10px 12px; font-weight:600; font-size:13px; color:var(--text);
+  border-right:1px solid var(--line); border-bottom:1px solid var(--line); white-space:nowrap;
+}
+table.matrix tbody td{ border-bottom:1px solid var(--line); text-align:center; padding:6px; }
+.cell-btn{
+  width:100%; height:44px; border:none; border-radius:8px; font-family:var(--font-mono); font-weight:600; font-size:12.5px;
+  display:flex; align-items:center; justify-content:center; color:#0E1B12; transition: transform .1s ease;
+}
+.cell-btn:not(:disabled):active{ transform: scale(0.94); }
+.cell-btn:disabled{ cursor:default; }
+.cell-empty{ background: rgba(255,255,255,0.04); color: var(--text-faint); border:1px dashed var(--line); }
+.cell-good{ background: var(--moss-bright); }
+.cell-mid{ background: var(--amber); }
+.cell-bad{ background: var(--rust-bright); }
+.cell-excel{ background: var(--surface-2); border:1px solid var(--amber); color: var(--amber-bright); font-size:16px; }
+.cell-excel:not(:disabled):hover{ background: rgba(217,164,65,0.15); }
+.overall-col{ font-family: var(--font-mono); font-weight:700; }
+
+.legend{ display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; }
+.legend span{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-dim); font-family:var(--font-mono); }
+.legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* SELECT / FORM CONTROLS */
+label.field-label{ display:block; font-size:11.5px; color: var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; font-weight:600; }
+select, input[type=text]{
+  width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+  padding: 13px 12px; border-radius:10px; font-size:15px; font-family: var(--font-body); appearance:none;
+}
+.field{ margin-bottom:14px; }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+.btn{
+  border:none; border-radius:10px; padding:14px 18px; font-weight:700; font-size:14.5px;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%;
+}
+.btn-primary{ background: var(--moss); color:#0E1B12; }
+.btn-primary:disabled{ background: var(--surface-2); color: var(--text-faint); }
+.btn-ghost{ background: transparent; border:1px solid var(--line); color: var(--text-dim); }
+.btn-outline-amber{ background: transparent; border:1px solid var(--amber); color: var(--amber-bright); }
+
+/* PICKER SCREEN */
+.picker-list{ display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
+.pick-chip{
+  background: var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:12px 6px;
+  color: var(--text); font-weight:600; font-size:13px; text-align:center;
+}
+.pick-chip.sel{ background: var(--moss); color:#0E1B12; border-color: var(--moss); }
+.pick-chip .sub{ display:block; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); margin-top:3px; font-weight:500; }
+.pick-chip.sel .sub{ color: #123016; }
+
+/* QUESTIONNAIRE */
+.progress-bar-wrap{ position: sticky; top: 96px; z-index:15; background: var(--bg); padding: 8px 0 12px; }
+.progress-track{ height:8px; background: var(--surface-2); border-radius:999px; overflow:hidden; border:1px solid var(--line); }
+.progress-fill{ height:100%; background: linear-gradient(90deg, var(--moss), var(--amber-bright)); transition: width .25s ease; }
+.progress-text{ font-family: var(--font-mono); font-size:11px; color:var(--text-dim); margin-top:6px; display:flex; justify-content:space-between; }
+
+.cat-heading{
+  font-family: var(--font-display); font-weight:700; font-size:12.5px; color: var(--amber-bright);
+  text-transform: uppercase; letter-spacing:0.08em; margin: 22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line);
+}
+.cat-heading:first-child{ margin-top:0; }
+
+.q-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); padding:14px; margin-bottom:10px; }
+.q-card.answered{ border-color: var(--line); }
+.q-num{ font-family: var(--font-mono); font-size:11px; color: var(--text-faint); margin-bottom:4px; }
+.q-text{ font-size:14.5px; line-height:1.45; color: var(--text); margin-bottom:4px; font-weight:500; }
+.q-accion{ font-size:12px; color: var(--text-faint); margin-bottom:12px; font-style:italic; }
+.q-answers{ display:flex; gap:8px; }
+.pill{
+  flex:1; border:1px solid var(--line); background: var(--surface-2); border-radius:9px; padding:11px 4px;
+  color: var(--text-dim); font-weight:700; font-size:13px; text-align:center;
+}
+.pill.si.sel{ background: var(--moss); border-color: var(--moss); color:#0E1B12; }
+.pill.no.sel{ background: var(--rust-bright); border-color: var(--rust-bright); color:#2A0E08; }
+.pill.na.sel{ background: var(--amber); border-color: var(--amber); color:#2A1E04; }
+.comment-toggle{
+  margin-top:10px; background:none; border:none; color: var(--text-faint); font-size:12px; text-decoration:underline;
+  padding:2px 0; font-family: var(--font-mono);
+}
+textarea.q-comment{
+  width:100%; margin-top:8px; background: var(--surface-2); border:1px solid var(--line); color:var(--text);
+  border-radius:8px; padding:10px; font-family: var(--font-body); font-size:13.5px; min-height:60px; resize:vertical;
+}
+
+.floating-submit{
+  position: fixed; bottom:0; left:0; right:0; z-index:30;
+  background: linear-gradient(0deg, var(--bg-alt) 60%, rgba(13,23,18,0));
+  padding: 22px 18px 18px;
+}
+.floating-submit .inner{ max-width: 880px; margin:0 auto; display:flex; gap:10px; }
+
+/* HISTORY / DETAIL MODAL */
+.modal-backdrop{ position:fixed; inset:0; background: rgba(8,14,11,0.72); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+.modal{
+  background: var(--bg-alt); border:1px solid var(--line); border-radius: 18px 18px 0 0;
+  width:100%; max-width: 880px; max-height: 86vh; overflow-y:auto; padding: 18px 18px 26px;
+}
+@media(min-width:640px){
+  .modal-backdrop{ align-items:center; }
+  .modal{ border-radius: 18px; max-height: 80vh; }
+}
+.modal-head{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+.modal-close{ background: var(--surface-2); border:1px solid var(--line); color:var(--text-dim); border-radius:8px; padding:8px 10px; font-size:13px; }
+
+.hist-row{
+  display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface);
+  border:1px solid var(--line); border-radius:10px; margin-bottom:8px;
+}
+.hist-row .meta{ font-size:12.5px; color:var(--text-dim); }
+.hist-row .meta b{ color:var(--text); }
+.hist-score{ font-family:var(--font-mono); font-weight:700; padding:6px 10px; border-radius:8px; font-size:13px; }
+
+.detail-q{ padding:10px 0; border-bottom:1px solid var(--line); }
+.detail-q:last-child{ border-bottom:none; }
+.detail-q .qt{ font-size:13.5px; margin-bottom:4px; }
+.detail-tag{ display:inline-block; font-family:var(--font-mono); font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; }
+.tag-si{ background: rgba(127,166,90,0.22); color: var(--moss-bright); }
+.tag-no{ background: rgba(219,107,78,0.22); color: var(--rust-bright); }
+.tag-na{ background: rgba(217,164,65,0.22); color: var(--amber-bright); }
+.detail-comment{ font-size:12.5px; color:var(--text-faint); margin-top:4px; }
+
+.empty-state{ text-align:center; padding: 50px 20px; color: var(--text-faint); }
+.empty-state .big{ font-family:var(--font-display); font-size:16px; color:var(--text-dim); margin-bottom:6px; font-weight:700; }
+
+.toast{
+  position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:100;
+  background: var(--moss); color:#0E1B12; padding:12px 20px; border-radius:10px; font-weight:700; font-size:13.5px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35); opacity:0; pointer-events:none; transition: opacity .2s ease, transform .2s ease;
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(6px); }
+
+.small-note{ font-size:11.5px; color: var(--text-faint); margin-top:10px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="topo-bg"></div>
+<div id="root"></div>
+<script id="questions-data" type="application/json">{"Dirección":[{"n":1,"categoria":"Comunicación","pregunta":"¿Se comunican correctamente los nuevos procedimientos a los equipos y el director sabe donde se encuentran?","accion":"Comentar","responsable":"Operaciones"},{"n":2,"categoria":"Comunicación","pregunta":"¿Se realizan reuniones interdepartamentales con periodicidad definida?","accion":"Ver resumen última reunión","responsable":"Operaciones"},{"n":3,"categoria":"Comunicación","pregunta":"¿Se utiliza Bloom Growth para las reuniones con OPERACIONES y se cumplen los objetivos/goals?","accion":"Entrar en Bloom Growth","responsable":"Operaciones"},{"n":4,"categoria":"Comunicación","pregunta":"¿Se utiliza Takhys correctamente entre recepción, limpieza y mantenimiento?","accion":"Entrar en takhys y ver estadisticas","responsable":"Operaciones"},{"n":5,"categoria":"IT Ciberseguridad","pregunta":"¿Todos los documentos se almacenan en el servidor/sharepoint?","accion":"Verificar carpeta del establecimiento","responsable":"Operaciones"},{"n":6,"categoria":"IT Ciberseguridad","pregunta":"¿En el offboarding se dan de baja los usuarios y se cambian las contraseñas compartidas?","accion":"Verificar usuarios protel","responsable":"Operaciones"},{"n":7,"categoria":"IT Ciberseguridad","pregunta":"¿Los dispositivos están registrados y el registro está actualizado?","accion":"Verificar con Robert todo inventario hardware","responsable":"Operaciones"},{"n":8,"categoria":"IT Ciberseguridad","pregunta":"¿Los empleados tienen sus dispositivos actualizados sin actualizaciones pendientes?","accion":"Verificar los diferentes ordenadores","responsable":"Operaciones"},{"n":9,"categoria":"IT Ciberseguridad","pregunta":"¿Los escritorios de los empleados están libres de archivos sensibles?","accion":"Verificar","responsable":"Operaciones"},{"n":10,"categoria":"Emergencia","pregunta":"¿El equipo sabe actuar ante una emergencia (incendio, escape de agua, corte de luz, queja grave)?","accion":"Comentar","responsable":"Operaciones"},{"n":11,"categoria":"Emergencia","pregunta":"¿El megáfono está localizado y accesible?","accion":"Verificar","responsable":"Operaciones"},{"n":12,"categoria":"Emergencia","pregunta":"¿El plano de emergencia coincide con la realidad del camping?","accion":"Verificar","responsable":"Mantenimiento"},{"n":13,"categoria":"WOW!","pregunta":"¿Se puede demostrar que se ofrecen experiencias WOW en el camping?","accion":"Comentar","responsable":"Operaciones"},{"n":14,"categoria":"Uso de marca","pregunta":"¿Se utilizan firmas corporativas correctamente?","accion":"Verificar","responsable":"Operaciones"},{"n":15,"categoria":"Uso de marca","pregunta":"¿Se utilizan los logos en alta calidad y sin distorsiones?","accion":"Verificar","responsable":"Operaciones"},{"n":16,"categoria":"Uso de marca","pregunta":"¿El tótem está visible con todos los elementos de comunicación marcados por HQ?","accion":"Verificar","responsable":"Operaciones"},{"n":17,"categoria":"Uso de marca","pregunta":"¿Se dispone de todo el merchandising de temporada visible y expuesto según pautas HQ?","accion":"Verificar","responsable":"Operaciones"},{"n":18,"categoria":"Uso de marca","pregunta":"¿Todas las piezas visibles en el camping siguen los estándares de marca?","accion":"Verificar","responsable":"Operaciones"},{"n":19,"categoria":"RRHH","pregunta":"¿El empleado conoce dónde consultar las nóminas y dispone de acceso?","accion":"Verificar 1 x dpto","responsable":"RRHH"},{"n":20,"categoria":"RRHH","pregunta":"¿El empleado ha completado todos los cursos obligatorios (emergencia (PAU), PRL,sostenibilidad, etc)?","accion":"Verificar 1 x dpto","responsable":"RRHH"},{"n":21,"categoria":"RRHH","pregunta":"¿El empleado ha firmado todos los documentos en factorial?","accion":"Verificar 1 x dpto","responsable":"RRHH"},{"n":22,"categoria":"RRHH","pregunta":"¿El empleado es capaz de nombrar los valores de la empresa?","accion":"Verificar 2","responsable":"RRHH"},{"n":23,"categoria":"RRHH","pregunta":"¿El empleado ha recibido los EPIs correspondientes?","accion":"Verificar 2","responsable":"RRHH"},{"n":24,"categoria":"RRHH","pregunta":"¿El empleado tiene los fichajes al día?","accion":"Verificar 1 x dpto","responsable":"RRHH"},{"n":25,"categoria":"RRHH","pregunta":"¿Hay botiquín en cada departamento (recepción, cocina, mantenimiento, housekeeping) con productos vigentes?","accion":"Verificar","responsable":"RRHH"},{"n":26,"categoria":"RRHH","pregunta":"¿Se realiza el onboarding según el procedimiento establecido?","accion":"Verificar","responsable":"RRHH"},{"n":27,"categoria":"RRHH","pregunta":"¿El calendario laboral está ubicado en zona visible?","accion":"Verificar","responsable":"RRHH"},{"n":28,"categoria":"RRHH","pregunta":"¿Existe un control horario de horas extras actualizado?","accion":"Verificar","responsable":"RRHH"},{"n":29,"categoria":"RRHH","pregunta":"¿El empleado tiene firmado el documento de RGPD y confidencialidad?","accion":"Verificar","responsable":"RRHH"},{"n":30,"categoria":"RRHH","pregunta":"¿El personal está bien uniformado, en buenas condiciones y con name tag?","accion":"Verificar 1 x dpto","responsable":"RRHH"},{"n":31,"categoria":"RRHH","pregunta":"¿El empleado tiene firmado el documento de ventaja alojamiento?","accion":"Verificar 2","responsable":"RRHH"},{"n":32,"categoria":"RRHH","pregunta":"¿Se conoce y se sabe gestionar un accidente laboral según procedimiento?","accion":"Comentar","responsable":"RRHH"},{"n":33,"categoria":"RRHH","pregunta":"¿Los empleados saben dónde están los SOPs para poder consultarlos?","accion":"Verificar","responsable":"Operaciones"},{"n":34,"categoria":"RRHH","pregunta":"¿Están planificadas las revisiones médicas?","accion":"Verificar","responsable":"RRHH"},{"n":35,"categoria":"RRHH","pregunta":"¿Los empleados revisados disponen de las herramientas de trabajo adecuadas para su posición?","accion":"Verificar 2","responsable":"RRHH"},{"n":36,"categoria":"RRHH","pregunta":"¿El calendario de vacaciones en Factorial está verificado y actualizado?","accion":"Verificar 2","responsable":"RRHH"},{"n":37,"categoria":"RRHH","pregunta":"Está actualizado el informe de PRL anual (riesgos psicosociales + acta visita + informe)","accion":"Verificar","responsable":"RRHH"},{"n":38,"categoria":"RRHH","pregunta":"Está actualizado el documento de selección con los procesos abiertos/Cerrados por camping?","accion":"Verificar","responsable":"RRHH"},{"n":39,"categoria":"RRHH","pregunta":"El protocolo de acoso está accesible a todos los empleados?","accion":"Verificar","responsable":"RRHH"},{"n":40,"categoria":"Reporting","pregunta":"¿El presupuesto está correctamente entrado en Protel?","accion":"Verificar","responsable":"Operaciones"},{"n":41,"categoria":"Legal","pregunta":"¿Las pólizas de seguro están vigentes y archivadas en las carpetas correspondientes?","accion":"Verificar","responsable":"Operaciones"},{"n":42,"categoria":"Legal","pregunta":"¿Se cumple con la LOPD?","accion":"Verificar","responsable":"Operaciones"},{"n":43,"categoria":"Legal","pregunta":"¿El registro de viajeros se envía correctamente al cuerpo policial correspondiente?","accion":"Verificar","responsable":"Operaciones"},{"n":44,"categoria":"Legal","pregunta":"¿Está visible la señalización de cámaras y hojas de reclamaciones en recepción?","accion":"Verificar","responsable":"Operaciones"},{"n":45,"categoria":"Legal","pregunta":"¿Está visible la señalización de bebidas alcohólicas y aforo en F&B?","accion":"Verificar","responsable":"Operaciones"},{"n":46,"categoria":"Legal","pregunta":"¿El PAU está impreso y disponible en recepción?","accion":"Verificar","responsable":"Operaciones"},{"n":47,"categoria":"Legal","pregunta":"¿Se han revisado todas las actas de inspecciones recibidas?","accion":"Verificar","responsable":"Operaciones"},{"n":48,"categoria":"Legal","pregunta":"¿Está colocada la señalización de agua no potable donde corresponda?","accion":"Verificar","responsable":"Operaciones"},{"n":49,"categoria":"Legal","pregunta":"¿Está visible la señalización de punto de encuentro?","accion":"Verificar","responsable":"Operaciones"},{"n":50,"categoria":"Legal","pregunta":"¿Está colocada la señalización de parking no vigilado?","accion":"Verificar","responsable":"Operaciones"},{"n":51,"categoria":"Legal","pregunta":"¿Se imprimen de forma diaria los listados de emergencias?","accion":"Verificar","responsable":"Operaciones"},{"n":52,"categoria":"ESG","pregunta":"¿Se cuenta con la documentación de gestión de residuos en regla?","accion":"Verificar","responsable":"Operaciones"},{"n":53,"categoria":"ESG","pregunta":"¿Se impulsa activamente la reducción del uso de plásticos?","accion":"Verificar","responsable":"Operaciones"},{"n":54,"categoria":"ESG","pregunta":"¿Se impulsa la recogida selectiva de residuos a nivel interno y comunitario?","accion":"Verificar interno y comunitario","responsable":"Operaciones"},{"n":55,"categoria":"ESG","pregunta":"¿Se potencia el producto local?","accion":"Verificar","responsable":"Operaciones"},{"n":56,"categoria":"ESG","pregunta":"¿Se impulsa el ahorro de agua y electricidad tanto internamente como con el cliente?","accion":"Verificar","responsable":"Operaciones"},{"n":57,"categoria":"ESG","pregunta":"¿Se realizan colaboraciones locales con entidades sin ánimo de lucro?","accion":"Verificar","responsable":"Operaciones"},{"n":58,"categoria":"Finanzas","pregunta":"¿Se suben las facturas de comisiones a Ubyquo de forma mensual?","accion":"Verificar","responsable":"Finanzas"},{"n":59,"categoria":"Operaciones","pregunta":"¿el personal va debidamente uniformado segun los estandares de wecamp?","accion":"Verificar","responsable":"Operaciones"}],"Recepción":[{"n":60,"categoria":"Gestión de VIP's","pregunta":"¿Están definidas las atenciones VIP por tipo y el equipo está preparado para cumplirlas?","accion":"Verificar","responsable":"Operaciones"},{"n":61,"categoria":"Gestión de satisfacción de cliente","pregunta":"¿Los objetos encontrados están registrados y gestionados correctamente?","accion":"Verificar si se registra y gestiona en Takhys","responsable":"Operaciones"},{"n":62,"categoria":"Gestión de satisfacción de cliente","pregunta":"¿Las últimas 5 quejas recibidas fueron gestionadas correctamente?","accion":"Verificar en reviewpro o email","responsable":"Operaciones"},{"n":63,"categoria":"Gestión de satisfacción de cliente","pregunta":"¿Los KPIs de ReviewPro están dentro de los objetivos marcados?","accion":"Verificar","responsable":"Operaciones"},{"n":64,"categoria":"Gestión de satisfacción de cliente","pregunta":"¿Los alojamientos VIP del día están revisados y preparados antes de la llegada?","accion":"Verificar","responsable":"Operaciones"},{"n":65,"categoria":"Recepcion","pregunta":"¿Se dispone de un listado actualizado de las últimas cotizaciones con sus respuestas?","accion":"Verificar","responsable":"Operaciones"},{"n":66,"categoria":"Recepcion","pregunta":"¿Los espacios internos de recepción, armarios y mostrador están limpios y ordenados?","accion":"Verificar","responsable":"Operaciones"},{"n":67,"categoria":"Recepcion","pregunta":"¿Las facturaciones OOD de los últimos 10 días son correctas?","accion":"Verificar","responsable":"Finanzas"},{"n":68,"categoria":"Recepcion","pregunta":"¿Los abonos realizados en los últimos 10 días están justificados?","accion":"Verificar","responsable":"Finanzas"},{"n":69,"categoria":"Recepcion","pregunta":"¿Los cargos negativos de los últimos 10 días tienen explicación y responsable asignado?","accion":"Verificar","responsable":"Finanzas"},{"n":70,"categoria":"Recepcion","pregunta":"¿El listado DI del último mes está correcto y completo?","accion":"Verificar","responsable":"Finanzas"},{"n":71,"categoria":"Recepcion","pregunta":"¿Las devoluciones, depósitos, facturación y créditos de los últimos check-outs son correctos?","accion":"Verificar","responsable":"Operaciones"},{"n":72,"categoria":"Recepcion","pregunta":"¿Se ha revisado el listado de reservas no reembolsables futuras en PMS?","accion":"Verificar","responsable":"Operaciones"},{"n":73,"categoria":"Recepcion","pregunta":"¿Las facturas de depósito y saldos de clientes casa están al día?","accion":"Verificar","responsable":"Finanzas"},{"n":74,"categoria":"Recepcion","pregunta":"¿Los perfiles de OTAs y metabuscadores tienen la información correcta y actualizada?","accion":"Se encarga Paula ","responsable":"Operaciones"},{"n":75,"categoria":"Recepcion","pregunta":"¿Se revisan que los pagos de Booking cuandren con lo facturado en Protel semanalmente? ¿Quien se encarga de esta gestión?","accion":"Verificar","responsable":"Operaciones"},{"n":76,"categoria":"Recepcion","pregunta":"¿En recepción se tiene a mano el excel de facturación por OTAS actualizado?(última versión enviada)","accion":"Verificar","responsable":"Operaciones"},{"n":77,"categoria":"Recepcion","pregunta":"Desde recepción se tiene acceso al TPV Virtual y se comprueban  los pagos de reservas pagadas online?","accion":"Verificar","responsable":"Operaciones"},{"n":78,"categoria":"Recepcion","pregunta":"¿El jefe de recepción revisa de manera diaria que la facturación/asignación de las entradas del día sea corecta?","accion":"Verificar","responsable":"Operaciones"},{"n":79,"categoria":"Recepcion","pregunta":"¿Recepción tiene acceso  al excel de control de bonos y conoce el proceso a seguir?","accion":"Verificar","responsable":"Operaciones"},{"n":80,"categoria":"Recepcion","pregunta":"¿Los créditos están revisados y cerrados al día conforme recibimos los pagos de las agencias?","accion":"Verificar","responsable":"Finanzas"},{"n":81,"categoria":"Recepcion","pregunta":"¿Estan todas las reservas cobradas anticipadamente facturadas como depósitos?","accion":"Verificar","responsable":"Finanzas"},{"n":82,"categoria":"Recepcion","pregunta":"¿Se esta dando un buen servicio telefonico en recepción? ","accion":"entrar en el portal Zerovoz y revisar llamadas atendidas durante ultimos 3 meses (buen servicio = +80% atendidas)","responsable":"Operaciones"},{"n":83,"categoria":"Recepcion","pregunta":"¿Se esta dando un buen servicio de atención al cliente en booking.com? ","accion":"entrar en el portal Booking.com y revisar mensajes contestados vs los no contestados","responsable":"Operaciones"},{"n":84,"categoria":"Recepcion","pregunta":"¿Se esta dando un buen servicio de atención al cliente en la mensajeria de app de STAY APP? ","accion":"entrar en el portal de Stay App y revisar mensajes con clientes","responsable":"Operaciones"}],"Administración":[{"n":85,"categoria":"Administracion","pregunta":"¿Se han realizado los inventarios de los últimos 2 meses?","accion":"Verificar","responsable":"Finanzas"},{"n":86,"categoria":"Administracion","pregunta":"¿Los albaranes pendientes de facturas están al día?","accion":"Verificar","responsable":"Finanzas"},{"n":87,"categoria":"Administracion","pregunta":"¿Los fondos de caja de los diferentes departamentos están verificados y cuadran?","accion":"Verificar","responsable":"Finanzas"},{"n":88,"categoria":"Administracion","pregunta":"¿Se ha revisado el último listado de comisiones en las extranets de Booking y Expedia?","accion":"Verificar","responsable":"Finanzas"},{"n":89,"categoria":"Administracion","pregunta":"¿Los no shows están correctamente reportados en las plataformas?","accion":"Verificar","responsable":"Finanzas"},{"n":90,"categoria":"Administracion","pregunta":"¿Las últimas facturas subidas a Ubyquo son correctas?","accion":"Verificar","responsable":"Finanzas"},{"n":91,"categoria":"Administracion","pregunta":"¿El saldo de créditos a +90 días es inferior a 2.000€?","accion":"Verificar","responsable":"Finanzas"},{"n":92,"categoria":"Administracion","pregunta":"¿El control del Petty Cash cuadra y se utilizan facturas en lugar de tickets?","accion":"Verificar","responsable":"Finanzas"},{"n":93,"categoria":"Administracion","pregunta":"¿La cantidad en el cashkeeper no excede los 4.000€ y se dispone de comprobantes de ingreso?","accion":"Verificar","responsable":"Finanzas"},{"n":94,"categoria":"Administracion","pregunta":"¿La gestión de las últimas 5 transferencias recibidas es correcta?","accion":"Verificar","responsable":"Finanzas"},{"n":95,"categoria":"Administracion","pregunta":"¿Esta toda la documentación del ultimo cierre colgada en Sharepoint? Inventarios, control de albaranes, lecturas de contadores, facturas a wecamp future,  FTEs, ventas supermercado. ","accion":"Verificar","responsable":"Finanzas"}],"Limpieza":[{"n":96,"categoria":"Housekeeping","pregunta":"¿Se auditan aleatoriamente la limpieza y montaje de alojamientos por parte del director?","accion":"Verificar","responsable":"Operaciones"},{"n":97,"categoria":"Housekeeping","pregunta":"¿Los tiempos de limpieza del departamento coinciden con los horarios planificados?","accion":"Verificar","responsable":"Operaciones"},{"n":98,"categoria":"Housekeeping","pregunta":"¿La productividad por tipo de alojamiento es adecuada según los horarios?","accion":"Verificar","responsable":"Operaciones"},{"n":99,"categoria":"Housekeeping","pregunta":"¿se utilizan los QR's de Takhys para medir los tiempos de limpieza de los diferentes alojamientos? ","accion":"Verificar 2 tipos alojamiento","responsable":"Operaciones"},{"n":100,"categoria":"Housekeeping","pregunta":"¿La última compra de artículos de limpieza y amenities es reciente y suficiente?","accion":"Verificar","responsable":"Operaciones"},{"n":101,"categoria":"Housekeeping","pregunta":"¿Los espacios internos del equipo de housekeeping están ordenados y limpios?","accion":"Verificar","responsable":"Operaciones"},{"n":102,"categoria":"Housekeeping","pregunta":"¿El kit del equipo de limpieza está completo (ropa, amenities, impresos, productos)?","accion":"Verificar","responsable":"Operaciones"},{"n":103,"categoria":"Housekeeping","pregunta":"¿La gestión con el proveedor de lavandería está libre de incidencias relevantes?","accion":"Comentar","responsable":"Operaciones"},{"n":104,"categoria":"Housekeeping","pregunta":"¿La gestión con el proveedor de equipos de limpieza está libre de incidencias relevantes?","accion":"Comentar","responsable":"Operaciones"},{"n":105,"categoria":"Housekeeping","pregunta":"¿Existe un calendario/programa de limpiezas generales anuales actualizado?","accion":"Verificar","responsable":"Operaciones"},{"n":106,"categoria":"Housekeeping","pregunta":"¿Se dispone de las fichas técnicas de los productos de limpieza actualmente en uso?","accion":"Verificar","responsable":"Operaciones"}],"F&B":[{"n":107,"categoria":"F&B","pregunta":"¿Se entregan las facturas de F&B a administración antes del día 7 del mes posterior?","accion":"Verificar ","responsable":"F&B"},{"n":108,"categoria":"F&B","pregunta":"¿Se introducen las compras con sus albaranes en Agora según el procedimiento?","accion":"Verificar ","responsable":"F&B"},{"n":109,"categoria":"F&B","pregunta":"¿Las anulaciones en el POS están justificadas y documentadas?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":110,"categoria":"F&B","pregunta":"¿Las cuentas abiertas en el POS están controladas y son correctas?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":111,"categoria":"F&B","pregunta":"¿se realizan correctamente los inventarios de F&B de cocina y sala a través de Agora?","accion":"Verificar restaurante","responsable":"F&B"},{"n":112,"categoria":"F&B","pregunta":"¿se tiene la carta digital actualizada?","accion":"Verificar restaurante","responsable":"F&B"},{"n":113,"categoria":"APPCC","pregunta":"¿Se ha realizado la formación APPCC al personal? ¿tienen el manual corporativo actualizado y completo?","accion":"Verificar restaurante ","responsable":"F&B"},{"n":114,"categoria":"APPCC","pregunta":"¿Se ha realizado la auditoría APPCC anual?","accion":"Verificar restaurante","responsable":"F&B"},{"n":115,"categoria":"APPCC","pregunta":"¿se ha realizado la formación de buenas prácticas al personal contratado? ¿se ha entregado los manuales y emitidos los certificados?","accion":"Verificar restaurante","responsable":"F&B"},{"n":116,"categoria":"APPCC","pregunta":"¿las elaboraciones de cocina están etiquetadas con fecha y almacenadas correctamente?","accion":"Verificar restaurante","responsable":"F&B"},{"n":117,"categoria":"APPCC","pregunta":"¿Todos los productos y eleboraciones están dentro de la fecha de consumo?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":118,"categoria":"APPCC","pregunta":"¿Se mantiene el orden y la limpieza de la zona de barra?","accion":"Verificar restaurante","responsable":"F&B"},{"n":119,"categoria":"APPCC","pregunta":"¿Se mantiene el orden y la limpieza de las zonas de trabajo y preparación?","accion":"Verificar restaurante","responsable":"F&B"},{"n":120,"categoria":"APPCC","pregunta":"¿Se mantiene el orden y la limpieza en las cámaras de refrigeración y congelación?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":121,"categoria":"APPCC","pregunta":"¿Se mantiene el orden y limpieza de los almacenes?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":122,"categoria":"APPCC","pregunta":"¿Se tienen los últimos análisis APPCC? ¿son correctos? ¿están registrados? ¿hay medidas correctivas?","accion":"Verificar restaurante","responsable":"F&B"},{"n":123,"categoria":"APPCC","pregunta":"¿Se toman a diario las temperaturas de las cámaras de conservación y congelación?¿se archiva la documentación?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":124,"categoria":"APPCC","pregunta":"¿Se lleva un control de proveedores? ¿ se tiene su número de RGS?","accion":"Verificar restaurante y supermercado","responsable":"F&B"},{"n":125,"categoria":"APPCC","pregunta":"¿La campana extractora de cocina está limpia? ¿Cuándo se limpio por última vez?","accion":"Verificar restaurante","responsable":"F&B"},{"n":126,"categoria":"APPCC","pregunta":"¿Toda la maquinaria de F&B está bien mantenida y funciona correctamente? ¿Y las instalaciones?","accion":"Verificar restaurante ","responsable":"F&B"},{"n":127,"categoria":"APPCC","pregunta":"¿Se cuenta con un sistema de gestión de residuos en F&B (reciclaje) y se usa correctamente?","accion":"Verificar restaurante","responsable":"F&B"},{"n":128,"categoria":"APPCC","pregunta":"¿Se tiene contrato con empresa de recogida de aceites usados? ¿Se tienen los albaranes de recogida?","accion":"Verificar restaurante","responsable":"F&B"},{"n":129,"categoria":"APPCC","pregunta":"¿El personal de cocina dispone de los EPIs necesarios para su trabajo?","accion":"Verificar restaurante","responsable":"F&B"},{"n":130,"categoria":"APPCC","pregunta":"¿El restaurante tiene la carta con los alérgenos referenciados?","accion":"Verificar restaurante","responsable":"F&B"},{"n":131,"categoria":"APPCC","pregunta":"¿El personal de restaurante utiliza zapatos con suela antideslizante?","accion":"Verificar restaurante","responsable":"F&B"},{"n":132,"categoria":"APPCC","pregunta":"¿Existe una manta ignífuga en la cocina?","accion":"Verificar restaurante","responsable":"F&B"},{"n":133,"categoria":"F&B","pregunta":"¿Se utilizan los proveedores referenciados por la central en F&B?","accion":"Verificar restaurante ","responsable":"F&B"},{"n":134,"categoria":"F&B","pregunta":"¿Se siguen las recetas, fichas técnicas y escandallos referenciados por la central?","accion":"Verificar restaurante","responsable":"F&B"},{"n":135,"categoria":"F&B","pregunta":"¿Se gestionan correctamente las reservas de F&B?","accion":"Verificar restaurante","responsable":"F&B"},{"n":136,"categoria":"F&B","pregunta":"¿Se contestan las reseñas de Google del restaurante?¿la valoración de google está por encima de 4*?","accion":"Verificar restaurante","responsable":"F&B"},{"n":137,"categoria":"F&B","pregunta":"¿Se cumplen los horarios de servicio de restaurante?","accion":"Verificar restaurante ","responsable":"F&B"},{"n":138,"categoria":"Operadores externos","pregunta":"¿Tenemos control el personal que trabaja en el restaurante externalizado? ¿Pedimos los TC1?","accion":"Verificar restaurante externalizado","responsable":"F&B"},{"n":139,"categoria":"Operadores externos","pregunta":"¿El operador recicla? ¿Tiene contrato de aceites usados y alabaranes de recogida?","accion":"Verificar restaurante externalizado","responsable":"F&B"},{"n":140,"categoria":"Operadores externos","pregunta":"¿El operador tiene la carta de alérgenos a disposicón de los clientes?","accion":"Verificar restaurante externalizado","responsable":"F&B"},{"n":141,"categoria":"Operadores externos","pregunta":"¿El operdador tiene las instalaciones de restaurante, cocina y almacen limpias y ordenadas?","accion":"Verificar restaurante externalizado","responsable":"F&B"},{"n":142,"categoria":"Operadores externos","pregunta":"¿El operador cumple con los horarios pactados?","accion":"Verificar restaurante externalizado","responsable":"F&B"}],"Mantenimiento":[{"n":143,"categoria":"Mantenimiento","pregunta":"¿Se cuenta con las garantías y documentación de la maquinaria ordenada y bien ubicada?","accion":"Verificar","responsable":"Mantenimiento"},{"n":144,"categoria":"Mantenimiento","pregunta":"¿El tiempo medio de resolución de una incidencia es inferior a 24h?","accion":"Verificar en takhys","responsable":"Mantenimiento"},{"n":145,"categoria":"Mantenimiento","pregunta":"¿La maquinaria está detallada e inventariada?","accion":"Verificar","responsable":"Mantenimiento"},{"n":146,"categoria":"Mantenimiento","pregunta":"¿Las áreas técnicas se encuentran limpias y ordenadas?","accion":"Verificar","responsable":"Mantenimiento"},{"n":147,"categoria":"Mantenimiento","pregunta":"¿Las inspecciones obligatorias por ley están programadas y calendarizadas?","accion":"Verificar","responsable":"Mantenimiento"},{"n":148,"categoria":"Mantenimiento","pregunta":"¿Se calendarizan los preventivos de mantenimiento?","accion":"Verificar","responsable":"Mantenimiento"},{"n":149,"categoria":"Mantenimiento","pregunta":"¿Se entregan a administración las facturas del mes antes del día 5 del mes posterior?","accion":"Verificar","responsable":"Mantenimiento"},{"n":150,"categoria":"Mantenimiento","pregunta":"¿Se mantiene un registro actualizado de usuarios de llaves maestras del establecimiento?","accion":"Verificar","responsable":"Mantenimiento"},{"n":151,"categoria":"Mantenimiento","pregunta":"¿Se realiza un inventario anual del departamento de mantenimiento?","accion":"Verificar","responsable":"Mantenimiento"},{"n":152,"categoria":"Mantenimiento","pregunta":"¿Se realizan los controles legales (Legionela, APPCC, Piscina, Incendios)?","accion":"Verificar","responsable":"Mantenimiento"},{"n":153,"categoria":"Mantenimiento","pregunta":"¿Se tienen todos los contratos y archivos legales ordenados y almacenados?","accion":"Verificar en sharepoint","responsable":"Mantenimiento"},{"n":154,"categoria":"Mantenimiento","pregunta":"¿Se validan los albaranes según la recepción de mercancías?","accion":"Verificar","responsable":"Mantenimiento"},{"n":155,"categoria":"Mantenimiento","pregunta":"¿El camping dispone de sepiolita disponible?","accion":"Verificar","responsable":"Mantenimiento"},{"n":156,"categoria":"Mantenimiento","pregunta":"¿El wifi funciona correctamente en al menos 4 ubicaciones diferentes?","accion":"Verificar","responsable":"Mantenimiento"},{"n":157,"categoria":"Mantenimiento","pregunta":"¿Existe el equipo de salvamento necesario y socorrista cualificado para piscinas >200m²?","accion":"Verificar","responsable":"Mantenimiento"},{"n":158,"categoria":"Mantenimiento","pregunta":"¿Hay extintor en la zona de barbacoas o rostidera?","accion":"Verificar","responsable":"Mantenimiento"},{"n":159,"categoria":"Mantenimiento","pregunta":"¿Los extintores están bien señalizados?","accion":"Verificar","responsable":"Mantenimiento"},{"n":160,"categoria":"Mantenimiento","pregunta":"¿Hay extintores CO2 en los armarios eléctricos o informáticos?","accion":"Verificar","responsable":"Mantenimiento"},{"n":161,"categoria":"Mantenimiento","pregunta":"¿Los extintores están revisados y el contrato de mantenimiento está vigente?","accion":"Verificar","responsable":"Mantenimiento"},{"n":162,"categoria":"Mantenimiento","pregunta":"¿Los vehículos han pasado las ITV correspondientes?","accion":"Verificar","responsable":"Mantenimiento"},{"n":163,"categoria":"Mantenimiento","pregunta":"¿La piscina tiene la señalización completa (reglamento interno, SILOE, horarios, profundidad)?","accion":"Verificar","responsable":"Mantenimiento"},{"n":164,"categoria":"Mantenimiento","pregunta":"¿Se utilizan los proveedores referenciados por la central en mantenimiento?","accion":"Verificar","responsable":"Mantenimiento"},{"n":165,"categoria":"Mantenimiento","pregunta":"¿Se realiza seguimiento del control de consumo energético?","accion":"Verificar","responsable":"Mantenimiento"},{"n":166,"categoria":"Mantenimiento","pregunta":"¿La seguridad nocturna verifica que las personas que acceden están alojadas (pulsera o listado)?","accion":"Verificar","responsable":"Operaciones"},{"n":167,"categoria":"Mantenimiento","pregunta":"¿La información SILOE está verificada y actualizada?","accion":"Verificar QR SILOE piscina","responsable":"Mantenimiento"},{"n":168,"categoria":"Mantenimiento","pregunta":"¿Los últimos análisis de legionella son correctos y están vigentes?","accion":"Verificar","responsable":"Mantenimiento"},{"n":169,"categoria":"Mantenimiento","pregunta":"¿Los últimos análisis de piscinas son correctos y están vigentes?","accion":"Verificar","responsable":"Mantenimiento"},{"n":170,"categoria":"Mantenimiento","pregunta":"¿todo el equipo va bien uniformado? (estandares wecamp, uniformidad en buen estado y aseados)","accion":"Verificar","responsable":"Mantenimiento"},{"n":171,"categoria":"Mantenimiento","pregunta":"¿disponen de todos los EPIS obligatorios? ","accion":"Verificar","responsable":"Mantenimiento"}],"Animación":[{"n":172,"categoria":"Experiencias","pregunta":"¿En julio y agosto hay música en directo cada semana?","accion":"Verificar comunicación","responsable":"Animación"},{"n":173,"categoria":"Experiencias","pregunta":"¿En julio y agosto se realizan un mínimo de 7 talleres a la semana?","accion":"Verificar planing","responsable":"Animación"},{"n":174,"categoria":"Experiencias","pregunta":"¿Los animadores tienen la formación correspondiente y están verificados en el registro blanco?","accion":"Verificar","responsable":"Animación"},{"n":175,"categoria":"Experiencias","pregunta":"¿Se formalizan los permisos parentales para las actividades?","accion":"Verificar los del día","responsable":"Animación"},{"n":176,"categoria":"Experiencias","pregunta":"¿Se formalizan los contratos de alquiler de bicicletas?","accion":"Verificar","responsable":"Animación"},{"n":177,"categoria":"Experiencias","pregunta":"¿Se publican los programas de animación en la App con un mínimo de 15 días?","accion":"Verificar los de 15 días previos","responsable":"Animación"},{"n":178,"categoria":"Experiencias","pregunta":"¿Se ofrece al menos 1 actividad al día para los grupos de edad de infantil y adolescentes o adultos?","accion":"Verificar","responsable":"Animación"},{"n":179,"categoria":"Experiencias","pregunta":"¿Se mantienen las asistencias actualizadas cada semana ?","accion":"Verificar asistencias en sharepoint","responsable":"Animación"},{"n":180,"categoria":"Experiencias","pregunta":"¿Los monitores disponen de los programas y fichas de actividades?","accion":"Verificar en sharepoint","responsable":"Animación"}],"Supermercado":[{"n":181,"categoria":"Supermercado","pregunta":"¿la imagen del supermercado sigue los estandares de wecamp? (ordenado, limpio y con diversidad de familias y suficientes productos?","accion":"Verificar ","responsable":"Operaciones"},{"n":182,"categoria":"Supermercado","pregunta":"¿El minimarket está operativo, bien expuesto y bien señalizado?","accion":"Verificar","responsable":"Operaciones"},{"n":183,"categoria":"Supermercado","pregunta":"¿existe una zona de Productos KM0 (locales)? ","accion":"Verificar ","responsable":"Operaciones"},{"n":184,"categoria":"Supermercado","pregunta":"¿existe una zona de productos wecamp y tiene variedad y buena presentación?","accion":"Verificar","responsable":"Operaciones"},{"n":185,"categoria":"Supermercado","pregunta":"¿se indica de manera correcta los precios en los artículos? ","accion":"Verificar","responsable":"Operaciones"},{"n":186,"categoria":"Supermercado","pregunta":"¿existe una zona de producto fresco?","accion":"Verificar","responsable":"Operaciones"},{"n":187,"categoria":"Supermercado","pregunta":"¿se ofrece pan y bollería por las mañanas? ","accion":"Verificar ","responsable":"Operaciones"},{"n":188,"categoria":"Supermercado","pregunta":"¿Se introducen las compras con sus albaranes en Agora según el procedimiento?","accion":"Verificar","responsable":"Operaciones"},{"n":189,"categoria":"Supermercado","pregunta":"¿Se entregan las facturas de supermercado a administración antes del día 7 del mes posterior?","accion":"Verificar","responsable":"Operaciones"},{"n":190,"categoria":"Supermercado","pregunta":"¿se realizan correctamente los inventarios de supermercado en Agora?","accion":"Verificar ","responsable":"Operaciones"},{"n":191,"categoria":"Supermercado","pregunta":"¿se ofrecen artículos para campistas? (camping gas, carbón, alargos, etc...)","accion":"Verificar ","responsable":"Operaciones"},{"n":192,"categoria":"Supermercado","pregunta":"¿se encuentra a la vista y presentados correctamente los packs wecamp?","accion":"Verificar","responsable":"Operaciones"},{"n":193,"categoria":"Supermercado","pregunta":"¿ Se tienen todos los artículos de merchandising en stock y a la venta?","accion":"Verificar","responsable":"Operaciones"}]}</script>
+<script>
+// ===================== DATA =====================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzk1jzHaJOWVPqpGAPm_qhzjsl_DG84qfqkcxzNBZlIEPNySwR7tJ2whkNL1c7qFzhF/exec';
+const QUESTIONS = JSON.parse(document.getElementById('questions-data').textContent);
+const AREAS = Object.keys(QUESTIONS);
+const CAMPINGS = ["MGP 1","MGP 2","MGP 3","MGP 4","MGP 6","MGP 7","MGP 8","MGP 9","MGP 11","MGP 12","MGP 13","MGP 15","MGP 16","Proyecto 1","Proyecto 2"];
+
+const AREA_SHORT = {
+  "Dirección":"DIR","Recepción":"REC","Administración":"ADM","Limpieza":"LMP",
+  "F&B":"F&B","Mantenimiento":"MNT","Animación":"ANI","Supermercado":"SUP"
+};
+
+let STATE = {
+  tab: 'dashboard',
+  index: [],              // master index of audits (shared)
+  drafts: [],             // in-progress drafts saved on this device
+  camping: null,
+  area: null,
+  manager: localStorage.getItem('wecamp_manager') || '',
+  answers: {},            // { qn: {respuesta, comentario} }
+  modal: null,            // {type:'history', camping, area} or {type:'detail', record}
+};
+
+const root = document.getElementById('root');
+
+function toast(msg){
+  let t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div');
+    t.id='toast'; t.className='toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+function slug(s){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_'); }
+
+function getDeviceId(){
+  try{
+    let id = localStorage.getItem('wecamp_device_id');
+    if(!id){ id = 'dev_'+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('wecamp_device_id', id); }
+    return id;
+  }catch(e){
+    if(!window.__wecampDeviceId) window.__wecampDeviceId = 'dev_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+    return window.__wecampDeviceId;
+  }
+}
+
+async function apiGet(params){
+  const url = APPS_SCRIPT_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP '+res.status+' al conectar con la Google Sheet');
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+
+async function apiPost(body){
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method:'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error('HTTP '+res.status+' al conectar con la Google Sheet');
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
+}
+
+// ===================== STORAGE =====================
+async function loadIndex(){
+  try{
+    const res = await apiGet({action:'get', key:'wecamp:index'});
+    STATE.index = res.value ? JSON.parse(res.value) : [];
+  }catch(e){ console.error('Error cargando índice:', e); STATE.index = []; STATE.storageError = e.message; }
+}
+
+async function saveIndex(){
+  await apiPost({action:'set', key:'wecamp:index', value: JSON.stringify(STATE.index)});
+}
+
+async function saveAuditRecord(record){
+  await apiPost({action:'set', key:'wecamp:audit:'+record.id, value: JSON.stringify(record)});
+}
+
+async function fetchAuditRecord(id){
+  try{
+    const res = await apiGet({action:'get', key:'wecamp:audit:'+id});
+    return res.value ? JSON.parse(res.value) : null;
+  }catch(e){ return null; }
+}
+
+let draftTimer = null;
+function draftKey(camping, area){ return 'wecamp:draft:'+getDeviceId()+':'+slug(camping)+':'+slug(area); }
+function currentDraftPayload(){
+  return JSON.stringify({camping: STATE.camping, area: STATE.area, answers: STATE.answers, manager: STATE.manager, ts: Date.now()});
+}
+function scheduleDraftSave(){
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(()=>{ flushDraftSave(); }, 600);
+}
+async function flushDraftSave(){
+  clearTimeout(draftTimer);
+  if(!STATE.camping || !STATE.area) return;
+  if(!STATE.answers || Object.keys(STATE.answers).length===0) return;
+  const payload = currentDraftPayload();
+  const key = draftKey(STATE.camping, STATE.area);
+  try{
+    await apiPost({action:'set', key, value: payload});
+  }catch(e){
+    // one retry after a short pause, in case of a transient backend hiccup
+    await new Promise(r=>setTimeout(r, 1200));
+    try{
+      await apiPost({action:'set', key, value: payload});
+    }catch(e2){
+      console.error('Error guardando borrador (tras reintento):', e2);
+    }
+  }
+}
+async function loadDraft(camping, area){
+  try{
+    const res = await apiGet({action:'get', key: draftKey(camping, area)});
+    return res.value ? JSON.parse(res.value) : null;
+  }catch(e){ return null; }
+}
+async function clearDraft(camping, area){
+  try{ await apiPost({action:'delete', key: draftKey(camping, area)}); }catch(e){}
+}
+
+async function loadAllDrafts(){
+  try{
+    const res = await apiGet({action:'list', prefix: 'wecamp:draft:'+getDeviceId()+':'});
+    if(!res || !res.keys) return [];
+    const drafts = [];
+    for(const key of res.keys){
+      try{
+        const r = await apiGet({action:'get', key});
+        if(r && r.value){
+          const d = JSON.parse(r.value);
+          if(d.camping && d.area && d.answers && Object.keys(d.answers).some(k=>d.answers[k] && d.answers[k].respuesta)){
+            const totalQ = QUESTIONS[d.area] ? QUESTIONS[d.area].length : 0;
+            const answered = Object.values(d.answers).filter(a=>a && a.respuesta).length;
+            drafts.push({key, camping:d.camping, area:d.area, manager:d.manager||'', ts:d.ts||0, answered, total: totalQ});
+          }
+        }
+      }catch(e){}
+    }
+    drafts.sort((a,b)=> b.ts - a.ts);
+    return drafts;
+  }catch(e){ return []; }
+}
+
+async function refreshDrafts(){
+  STATE.drafts = await loadAllDrafts();
+  if(STATE.tab==='audit' && !STATE.camping) render();
+}
+
+// safety net: flush the moment the tab is backgrounded, closed, or navigated away from
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') flushDraftSave(); });
+window.addEventListener('pagehide', ()=>{ flushDraftSave(); });
+window.addEventListener('beforeunload', ()=>{ flushDraftSave(); });
+
+// ===================== SCORING =====================
+function latestPerPair(){
+  // returns map "camping|area" -> latest index entry
+  const map = {};
+  for(const e of STATE.index){
+    const key = e.camping+'|'+e.area;
+    if(!map[key] || e.ts > map[key].ts) map[key] = e;
+  }
+  return map;
+}
+
+function campingOverall(camping, latest){
+  let si=0, no=0;
+  for(const area of AREAS){
+    const e = latest[camping+'|'+area];
+    if(e){ si += e.si; no += e.no; }
+  }
+  if(si+no===0) return null;
+  return si/(si+no);
+}
+
+function pct(v){ return v===null || v===undefined ? '—' : Math.round(v*100)+'%'; }
+
+function cellClass(v){
+  if(v===null || v===undefined) return 'cell-empty';
+  if(v>=0.9) return 'cell-good';
+  if(v>=0.7) return 'cell-mid';
+  return 'cell-bad';
+}
+
+// ===================== EXCEL EXPORT =====================
+function campingComplete(camping, latest){
+  return AREAS.every(a => !!latest[camping+'|'+a]);
+}
+
+function fmtDateForFile(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function respLabel(r){ return r==='Si'?'Sí':r==='No'?'No':'No aplica'; }
+
+function buildResumenRows(campingsList, latest){
+  const header = ['Camping', ...AREAS.map(a=>a), 'TOTAL'];
+  const rows = [header];
+  campingsList.forEach(camping=>{
+    const row = [camping];
+    AREAS.forEach(area=>{
+      const e = latest[camping+'|'+area];
+      row.push(e ? Math.round((e.si/((e.si+e.no)||1))*1000)/10 : '');
+    });
+    const ov = campingOverall(camping, latest);
+    row.push(ov===null ? '' : Math.round(ov*1000)/10);
+    rows.push(row);
+  });
+  return rows;
+}
+
+async function exportCampingExcel(camping, triggerBtn){
+  const originalLabel = triggerBtn ? triggerBtn.textContent : null;
+  if(triggerBtn){ triggerBtn.disabled = true; triggerBtn.textContent = '…'; }
+  try{
+    const latest = latestPerPair();
+    const records = {};
+    for(const area of AREAS){
+      const e = latest[camping+'|'+area];
+      if(e){
+        const rec = await fetchAuditRecord(e.id);
+        if(rec) records[area] = rec;
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Resumen sheet for this camping
+    const resumenRows = [['ÁREA','Nº PUNTOS','SÍ','NO','N/A','% CUMPLIMIENTO','AUDITADO POR','FECHA']];
+    let totSi=0, totNo=0;
+    AREAS.forEach(area=>{
+      const rec = records[area];
+      if(rec){
+        totSi += rec.si; totNo += rec.no;
+        resumenRows.push([area, rec.total, rec.si, rec.no, rec.na, Math.round((rec.si/((rec.si+rec.no)||1))*1000)/10, rec.manager, new Date(rec.ts).toLocaleDateString('es-ES')]);
+      } else {
+        resumenRows.push([area, QUESTIONS[area].length, '', '', '', '', '', '']);
+      }
+    });
+    resumenRows.push([]);
+    resumenRows.push(['TOTAL', '', totSi, totNo, '', Math.round((totSi/((totSi+totNo)||1))*1000)/10, '', '']);
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenRows);
+    wsResumen['!cols'] = [{wch:18},{wch:11},{wch:8},{wch:8},{wch:8},{wch:16},{wch:16},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+    // One sheet per area with full detail
+    AREAS.forEach(area=>{
+      const rec = records[area];
+      const rows = [['Nº','Categoría','Pregunta','Respuesta','Comentario']];
+      const qs = QUESTIONS[area];
+      const ansByN = {};
+      if(rec) rec.answers.forEach(a=>{ ansByN[a.n] = a; });
+      qs.forEach(q=>{
+        const a = ansByN[q.n];
+        rows.push([q.n, q.categoria, q.pregunta, a ? respLabel(a.respuesta) : '', a ? (a.comentario||'') : '']);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [{wch:5},{wch:20},{wch:70},{wch:12},{wch:40}];
+      const sheetName = area.length>28 ? area.slice(0,28) : area;
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    XLSX.writeFile(wb, `Auditoria_${slug(camping)}_${fmtDateForFile()}.xlsx`);
+    toast('Excel descargado ✓');
+  }catch(err){
+    console.error('Error exportando Excel:', err);
+    toast('⚠ Error al generar el Excel: '+(err && err.message ? err.message : ''));
+  }finally{
+    if(triggerBtn){ triggerBtn.disabled = false; triggerBtn.textContent = originalLabel; }
+  }
+}
+
+async function exportGlobalExcel(triggerBtn){
+  if(triggerBtn){ triggerBtn.disabled = true; triggerBtn.textContent = 'Generando...'; }
+  try{
+    const latest = latestPerPair();
+    const wb = XLSX.utils.book_new();
+
+    const resumenRows = buildResumenRows(CAMPINGS, latest);
+    const wsResumen = XLSX.utils.aoa_to_sheet(resumenRows);
+    wsResumen['!cols'] = [{wch:16}, ...AREAS.map(()=>({wch:10})), {wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+    const detailRows = [['Camping','Área','Nº','Categoría','Pregunta','Respuesta','Comentario','Auditado por','Fecha']];
+    for(const camping of CAMPINGS){
+      for(const area of AREAS){
+        const e = latest[camping+'|'+area];
+        if(!e) continue;
+        const rec = await fetchAuditRecord(e.id);
+        if(!rec) continue;
+        rec.answers.forEach(a=>{
+          detailRows.push([camping, area, a.n, a.categoria, a.pregunta, respLabel(a.respuesta), a.comentario||'', rec.manager, new Date(rec.ts).toLocaleDateString('es-ES')]);
+        });
+      }
+    }
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+    wsDetail['!cols'] = [{wch:14},{wch:16},{wch:5},{wch:20},{wch:60},{wch:12},{wch:35},{wch:16},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Detalle');
+
+    XLSX.writeFile(wb, `Auditoria_WECAMP_Resumen_${fmtDateForFile()}.xlsx`);
+    toast('Excel descargado ✓');
+  }catch(err){
+    console.error('Error exportando Excel:', err);
+    toast('⚠ Error al generar el Excel: '+(err && err.message ? err.message : ''));
+  }finally{
+    if(triggerBtn){ triggerBtn.disabled = false; triggerBtn.textContent = '⬇ Descargar resumen de todo (Excel)'; }
+  }
+}
+
+// ===================== RENDER: SHELL =====================
+function render(){
+  root.innerHTML = '';
+  root.appendChild(renderHeader());
+  const main = document.createElement('main');
+  if(STATE.tab==='dashboard') main.appendChild(renderDashboard());
+  else if(STATE.tab==='drafts') main.appendChild(renderDraftsTab());
+  else main.appendChild(renderAuditFlow());
+  root.appendChild(main);
+  if(STATE.modal) root.appendChild(renderModal());
+}
+
+function renderHeader(){
+  const header = document.createElement('header');
+  header.className='top';
+  header.innerHTML = `
+    <div class="wordmark">WECAMP <span class="dot">·</span> <small>Auditorías internas</small></div>
+    <div class="tabs">
+      <button class="tab ${STATE.tab==='dashboard'?'active':''}" data-tab="dashboard">Dashboard</button>
+      <button class="tab ${STATE.tab==='audit'?'active':''}" data-tab="audit">Nueva auditoría</button>
+      <button class="tab ${STATE.tab==='drafts'?'active':''}" data-tab="drafts">En curso${STATE.drafts && STATE.drafts.length ? ` <span class="tab-badge">${STATE.drafts.length}</span>` : ''}</button>
+    </div>
+  `;
+  header.querySelectorAll('.tab').forEach(btn=>{
+    btn.onclick = ()=>{
+      STATE.tab = btn.dataset.tab;
+      render();
+      window.scrollTo({top:0, behavior:'instant'});
+      if((STATE.tab==='audit' && !STATE.camping) || STATE.tab==='drafts') refreshDrafts();
+    };
+  });
+  return header;
+}
+
+// ===================== RENDER: DASHBOARD =====================
+function renderDashboard(){
+  const wrap = document.createElement('div');
+  const latest = latestPerPair();
+
+  const totalAudits = STATE.index.length;
+  const campingsAuditados = new Set(STATE.index.map(e=>e.camping)).size;
+  const overallScores = CAMPINGS.map(c=>campingOverall(c, latest)).filter(v=>v!==null);
+  const avgGlobal = overallScores.length ? overallScores.reduce((a,b)=>a+b,0)/overallScores.length : null;
+
+  const summary = document.createElement('div');
+  summary.className='summary-row';
+  summary.innerHTML = `
+    <div class="stat"><div class="num">${totalAudits}</div><div class="label">Auditorías realizadas</div></div>
+    <div class="stat"><div class="num">${campingsAuditados}/${CAMPINGS.length}</div><div class="label">Campings con datos</div></div>
+    <div class="stat"><div class="num">${pct(avgGlobal)}</div><div class="label">Cumplimiento medio</div></div>
+  `;
+  wrap.appendChild(summary);
+
+  if(STATE.drafts && STATE.drafts.length){
+    const draftBanner = document.createElement('div');
+    draftBanner.className='card';
+    draftBanner.style.cssText = 'border-color:var(--amber); background:rgba(217,164,65,0.08); cursor:pointer;';
+    draftBanner.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div>
+          <div class="card-title" style="margin-bottom:4px; color:var(--amber-bright);">⚠ Tienes ${STATE.drafts.length} auditoría${STATE.drafts.length>1?'s':''} a medias en este dispositivo</div>
+          <div class="small-note" style="margin-top:0;">${STATE.drafts.slice(0,3).map(d=>`${d.camping} · ${d.area} (${d.answered}/${d.total})`).join(' · ')}${STATE.drafts.length>3?' · …':''}</div>
+        </div>
+        <button class="btn btn-outline-amber" style="width:auto; padding:10px 16px; flex-shrink:0;">Ver</button>
+      </div>
+    `;
+    draftBanner.onclick = ()=>{
+      STATE.tab='drafts';
+      render();
+    };
+    wrap.appendChild(draftBanner);
+  }
+
+  const card = document.createElement('div');
+  card.className='card';
+  card.innerHTML = `<div class="card-title">Mapa de cumplimiento por camping y área</div>`;
+
+  const matrixWrap = document.createElement('div');
+  matrixWrap.className='matrix-wrap';
+  const table = document.createElement('table');
+  table.className='matrix';
+
+  let thead = '<thead><tr><th class="corner">Camping</th>';
+  for(const a of AREAS) thead += `<th>${AREA_SHORT[a]}</th>`;
+  thead += '<th>TOTAL</th><th>Excel</th></tr></thead>';
+
+  let tbody = '<tbody>';
+  for(const camping of CAMPINGS){
+    tbody += `<tr><th>${camping}</th>`;
+    for(const area of AREAS){
+      const e = latest[camping+'|'+area];
+      const v = e ? e.si/(e.si+e.no || 1) : null;
+      const hasData = !!e;
+      tbody += `<td><button class="cell-btn ${cellClass(v)}" data-camping="${camping}" data-area="${area}" data-hasdata="${hasData}" ${hasData?'':'disabled'}>${pct(v)}</button></td>`;
+    }
+    const ov = campingOverall(camping, latest);
+    const ovHasData = ov!==null;
+    tbody += `<td class="overall-col"><button class="cell-btn ${cellClass(ov)}" data-camping="${camping}" data-area="__ALL__" data-hasdata="${ovHasData}" ${ovHasData?'':'disabled'}>${pct(ov)}</button></td>`;
+    tbody += `<td><button class="cell-btn cell-excel" data-excel-camping="${camping}" title="Descargar Excel de ${camping}">⬇</button></td>`;
+    tbody += '</tr>';
+  }
+  tbody += '</tbody>';
+
+  table.innerHTML = thead + tbody;
+  matrixWrap.appendChild(table);
+  card.appendChild(matrixWrap);
+
+  const legend = document.createElement('div');
+  legend.className='legend';
+  legend.innerHTML = `
+    <span><i style="background:var(--moss-bright)"></i>&ge; 90%</span>
+    <span><i style="background:var(--amber)"></i>70&ndash;89%</span>
+    <span><i style="background:var(--rust-bright)"></i>&lt; 70%</span>
+    <span><i style="background:rgba(255,255,255,0.08); border:1px dashed var(--line)"></i>Sin auditar</span>
+  `;
+  card.appendChild(legend);
+  card.querySelectorAll('.cell-excel').forEach(btn=>{
+    btn.onclick = ()=> exportCampingExcel(btn.dataset.excelCamping, btn);
+  });
+  card.querySelectorAll('.cell-btn').forEach(btn=>{
+    if(btn.dataset.hasdata!=='true') return;
+    btn.onclick = ()=>{
+      const camping = btn.dataset.camping, area = btn.dataset.area;
+      if(area==='__ALL__'){
+        STATE.modal = {type:'campingHistory', camping};
+      } else {
+        STATE.modal = {type:'history', camping, area};
+      }
+      render();
+    };
+  });
+
+  wrap.appendChild(card);
+
+  const globalExportRow = document.createElement('div');
+  globalExportRow.style.cssText = 'margin-top:14px;';
+  const completeCount = CAMPINGS.filter(c=>campingComplete(c, latest)).length;
+  globalExportRow.innerHTML = `
+    <button class="btn btn-outline-amber" id="globalExportBtn">⬇ Descargar resumen de todo (Excel)</button>
+    <div class="small-note" style="text-align:center; margin-top:8px;">${completeCount}/${CAMPINGS.length} campings auditados por completo (todas las áreas)</div>
+  `;
+  wrap.appendChild(globalExportRow);
+  setTimeout(()=>{
+    const gbtn = document.getElementById('globalExportBtn');
+    if(gbtn) gbtn.onclick = ()=> exportGlobalExcel(gbtn);
+  }, 0);
+
+  const note = document.createElement('div');
+  note.className='small-note';
+  note.textContent = 'Toca una celda con datos para ver el historial de auditorías, revisar las respuestas y editarlas. Las celdas vacías (sin auditar todavía) se rellenan desde la pestaña "Nueva auditoría".';
+  wrap.appendChild(note);
+
+  return wrap;
+}
+
+// ===================== RENDER: AUDIT FLOW (PICKER) =====================
+function renderDraftsTab(){
+  const wrap = document.createElement('div');
+  if(!STATE.drafts || STATE.drafts.length===0){
+    const empty = document.createElement('div');
+    empty.className='empty-state';
+    empty.innerHTML = `<div class="big">No hay auditorías a medias</div>Cuando empieces una auditoría y salgas sin terminarla, aparecerá aquí para poder retomarla.`;
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  wrap.appendChild(renderDraftsCard());
+  return wrap;
+}
+
+function renderDraftsCard(){
+  const draftsCard = document.createElement('div');
+  draftsCard.className='card';
+  draftsCard.style.borderColor = 'var(--amber)';
+  draftsCard.innerHTML = `<div class="card-title">📋 Auditorías a medias en este dispositivo (${STATE.drafts.length})</div>`;
+  const list = document.createElement('div');
+  STATE.drafts.forEach(d=>{
+    const row = document.createElement('div');
+    row.className='hist-row';
+    const meta = document.createElement('div');
+    meta.className='meta';
+    meta.innerHTML = `<b>${d.camping} · ${d.area}</b><br>${d.answered}/${d.total} respondidas${d.manager?' · '+d.manager:''} · ${d.ts?new Date(d.ts).toLocaleString('es-ES',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}`;
+    const btnWrap = document.createElement('div');
+    btnWrap.style.cssText='display:flex; gap:8px; flex-shrink:0;';
+    const contBtn = document.createElement('button');
+    contBtn.className='btn btn-primary'; contBtn.style.cssText='width:auto; padding:9px 14px;'; contBtn.textContent='Continuar';
+    contBtn.onclick = ()=> startAudit(d.camping, d.area);
+    const delBtn = document.createElement('button');
+    delBtn.className='btn btn-ghost'; delBtn.style.cssText='width:auto; padding:9px 12px; color:var(--rust-bright); border-color:var(--rust-bright);';
+    delBtn.textContent = 'Descartar';
+    delBtn.onclick = async ()=>{ await clearDraft(d.camping, d.area); await refreshDrafts(); };
+    btnWrap.appendChild(contBtn); btnWrap.appendChild(delBtn);
+    row.appendChild(meta); row.appendChild(btnWrap);
+    list.appendChild(row);
+  });
+  draftsCard.appendChild(list);
+  return draftsCard;
+}
+
+function renderAuditFlow(){
+  const wrap = document.createElement('div');
+
+  if(!STATE.camping || !STATE.area){
+    const card = document.createElement('div');
+    card.className='card';
+    card.innerHTML = `<div class="card-title">1. Elige camping y área a auditar</div>`;
+
+    const nameField = document.createElement('div');
+    nameField.className='field';
+    nameField.innerHTML = `<label class="field-label">Tu nombre (area manager)</label>
+      <input type="text" id="managerInput" placeholder="Ej: Laura" value="${STATE.manager}">`;
+    card.appendChild(nameField);
+    const managerInputEl = nameField.querySelector('#managerInput');
+    managerInputEl.oninput = (e)=>{
+      STATE.manager = e.target.value;
+      localStorage.setItem('wecamp_manager', STATE.manager);
+    };
+
+    const campField = document.createElement('div');
+    campField.className='field';
+    campField.innerHTML = `<label class="field-label">Camping</label>`;
+    const campList = document.createElement('div');
+    campList.className='picker-list';
+    CAMPINGS.forEach(c=>{
+      const chip = document.createElement('button');
+      chip.className='pick-chip'+(STATE.pickCamping===c?' sel':'');
+      chip.textContent = c;
+      chip.onclick = ()=>{ STATE.pickCamping = c; render(); };
+      campList.appendChild(chip);
+    });
+    campField.appendChild(campList);
+    card.appendChild(campField);
+
+    const areaField = document.createElement('div');
+    areaField.className='field';
+    areaField.innerHTML = `<label class="field-label">Área</label>`;
+    const areaList = document.createElement('div');
+    areaList.className='picker-list';
+    AREAS.forEach(a=>{
+      const chip = document.createElement('button');
+      chip.className='pick-chip'+(STATE.pickArea===a?' sel':'');
+      chip.innerHTML = `${a}<span class="sub">${QUESTIONS[a].length} puntos</span>`;
+      chip.onclick = ()=>{ STATE.pickArea = a; render(); };
+      areaList.appendChild(chip);
+    });
+    areaField.appendChild(areaList);
+    card.appendChild(areaField);
+
+    const startBtn = document.createElement('button');
+    startBtn.className='btn btn-primary';
+    startBtn.style.marginTop='8px';
+    startBtn.textContent = 'Empezar auditoría →';
+    startBtn.disabled = !(STATE.pickCamping && STATE.pickArea);
+    startBtn.onclick = async ()=>{
+      STATE.manager = document.getElementById('managerInput').value.trim();
+      localStorage.setItem('wecamp_manager', STATE.manager);
+      await startAudit(STATE.pickCamping, STATE.pickArea);
+    };
+    card.appendChild(startBtn);
+
+    wrap.appendChild(card);
+
+    return wrap;
+  }
+
+  // QUESTIONNAIRE VIEW
+  const qs = QUESTIONS[STATE.area];
+  const answeredCount = qs.filter(q=>STATE.answers[q.n] && STATE.answers[q.n].respuesta).length;
+
+  const progWrap = document.createElement('div');
+  progWrap.className='progress-bar-wrap';
+  progWrap.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+      <div class="progress-text" style="margin:0;"><span>${STATE.camping} · ${STATE.area}</span></div>
+      <button class="modal-close" id="exitAuditBtn">✕ Salir</button>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${qs.length?(answeredCount/qs.length*100):0}%"></div></div>
+    <div class="progress-text"><span>${answeredCount} de ${qs.length} respondidas</span></div>
+    <div class="small-note" style="margin-top:6px">Tu progreso se guarda automáticamente en este dispositivo. Puedes salir y retomarlo cuando quieras.</div>
+  `;
+  wrap.appendChild(progWrap);
+  setTimeout(()=>{
+    const exitBtn = document.getElementById('exitAuditBtn');
+    if(exitBtn) exitBtn.onclick = openExitConfirm;
+  }, 0);
+
+  let lastCat = null;
+  qs.forEach(q=>{
+    if(q.categoria !== lastCat){
+      const h = document.createElement('div');
+      h.className='cat-heading';
+      h.textContent = q.categoria;
+      wrap.appendChild(h);
+      lastCat = q.categoria;
+    }
+    wrap.appendChild(renderQuestionCard(q));
+  });
+
+  const backBtn = document.createElement('button');
+  backBtn.className='btn btn-ghost';
+  backBtn.style.marginTop='16px';
+  backBtn.textContent = '← Cambiar camping / área';
+  backBtn.onclick = openExitConfirm;
+  wrap.appendChild(backBtn);
+
+  const floating = document.createElement('div');
+  floating.className='floating-submit';
+  const canSubmit = answeredCount > 0;
+  floating.innerHTML = `<div class="inner">
+    <button class="btn btn-primary" id="submitAuditBtn" ${canSubmit?'':'disabled'}>Guardar auditoría (${answeredCount}/${qs.length})</button>
+  </div>`;
+  wrap.appendChild(floating);
+
+  setTimeout(()=>{
+    const btn = document.getElementById('submitAuditBtn');
+    if(btn) btn.onclick = submitAudit;
+  }, 0);
+
+  return wrap;
+}
+
+function renderQuestionCard(q){
+  const card = document.createElement('div');
+  const current = STATE.answers[q.n] || {};
+  card.className = 'q-card'+(current.respuesta?' answered':'');
+
+  card.innerHTML = `
+    <div class="q-num">Punto ${q.n}${q.responsable?' · '+q.responsable:''}</div>
+    <div class="q-text">${q.pregunta}</div>
+    ${q.accion ? `<div class="q-accion">Cómo comprobarlo: ${q.accion}</div>` : ''}
+    <div class="q-answers">
+      <button class="pill si ${current.respuesta==='Si'?'sel':''}" data-v="Si">Sí</button>
+      <button class="pill no ${current.respuesta==='No'?'sel':''}" data-v="No">No</button>
+      <button class="pill na ${current.respuesta==='No aplica'?'sel':''}" data-v="No aplica">N/A</button>
+    </div>
+    <button class="comment-toggle">${current.comentario ? 'Editar comentario' : '+ Añadir comentario'}</button>
+    <textarea class="q-comment" style="display:${current.comentario?'block':'none'}" placeholder="Comentario / evidencia...">${current.comentario||''}</textarea>
+  `;
+
+  card.querySelectorAll('.pill').forEach(p=>{
+    p.onclick = ()=>{
+      const v = p.dataset.v;
+      if(!STATE.answers[q.n]) STATE.answers[q.n] = {};
+      STATE.answers[q.n].respuesta = (STATE.answers[q.n].respuesta===v) ? null : v;
+      scheduleDraftSave();
+      render();
+    };
+  });
+  const toggleBtn = card.querySelector('.comment-toggle');
+  const textarea = card.querySelector('.q-comment');
+  toggleBtn.onclick = ()=>{
+    textarea.style.display = textarea.style.display==='none' ? 'block':'none';
+    if(textarea.style.display==='block') textarea.focus();
+  };
+  textarea.oninput = (e)=>{
+    if(!STATE.answers[q.n]) STATE.answers[q.n] = {};
+    STATE.answers[q.n].comentario = e.target.value;
+    scheduleDraftSave();
+  };
+
+  return card;
+}
+
+function renderEditableQuestionCard(q, editAnswers){
+  const card = document.createElement('div');
+  const current = editAnswers[q.n] || {};
+  card.className = 'q-card'+(current.respuesta?' answered':'');
+
+  card.innerHTML = `
+    <div class="q-num">Punto ${q.n}${q.responsable?' · '+q.responsable:''}</div>
+    <div class="q-text">${q.pregunta}</div>
+    ${q.accion ? `<div class="q-accion">Cómo comprobarlo: ${q.accion}</div>` : ''}
+    <div class="q-answers">
+      <button class="pill si ${current.respuesta==='Si'?'sel':''}" data-v="Si">Sí</button>
+      <button class="pill no ${current.respuesta==='No'?'sel':''}" data-v="No">No</button>
+      <button class="pill na ${current.respuesta==='No aplica'?'sel':''}" data-v="No aplica">N/A</button>
+    </div>
+    <button class="comment-toggle">${current.comentario ? 'Editar comentario' : '+ Añadir comentario'}</button>
+    <textarea class="q-comment" style="display:${current.comentario?'block':'none'}" placeholder="Comentario / evidencia...">${current.comentario||''}</textarea>
+  `;
+
+  card.querySelectorAll('.pill').forEach(p=>{
+    p.onclick = ()=>{
+      const v = p.dataset.v;
+      if(!editAnswers[q.n]) editAnswers[q.n] = {};
+      editAnswers[q.n].respuesta = (editAnswers[q.n].respuesta===v) ? null : v;
+      render();
+    };
+  });
+  const toggleBtn = card.querySelector('.comment-toggle');
+  const textarea = card.querySelector('.q-comment');
+  toggleBtn.onclick = ()=>{
+    textarea.style.display = textarea.style.display==='none' ? 'block':'none';
+    if(textarea.style.display==='block') textarea.focus();
+  };
+  textarea.oninput = (e)=>{
+    if(!editAnswers[q.n]) editAnswers[q.n] = {};
+    editAnswers[q.n].comentario = e.target.value;
+  };
+
+  return card;
+}
+
+async function saveEditedAudit(r, qs, editAnswers){
+  let si=0, no=0, na=0;
+  const answersArr = [];
+  qs.forEach(q=>{
+    const a = editAnswers[q.n];
+    if(a && a.respuesta){
+      if(a.respuesta==='Si') si++;
+      else if(a.respuesta==='No') no++;
+      else if(a.respuesta==='No aplica') na++;
+      answersArr.push({n:q.n, categoria:q.categoria, pregunta:q.pregunta, respuesta:a.respuesta, comentario:a.comentario||''});
+    }
+  });
+
+  const updated = Object.assign({}, r, {
+    si, no, na, total: qs.length,
+    answers: answersArr,
+    updatedTs: Date.now()
+  });
+
+  await saveAuditRecord(updated);
+
+  const idx = STATE.index.findIndex(e=>e.id===r.id);
+  if(idx>-1){
+    STATE.index[idx] = Object.assign({}, STATE.index[idx], {si, no, na, total: qs.length});
+    await saveIndex();
+  }
+
+  toast('Cambios guardados ✓');
+  STATE.modal = {type:'detail', record: updated, editing:false};
+  render();
+}
+
+function openExitConfirm(){
+  STATE.modal = {type:'exitConfirm'};
+  render();
+}
+
+async function exitSaveDraft(){
+  await flushDraftSave();
+  STATE.camping=null; STATE.area=null; STATE.answers={}; STATE.modal=null;
+  toast('Borrador guardado');
+  await refreshDrafts();
+  render();
+}
+
+async function exitDiscard(){
+  await clearDraft(STATE.camping, STATE.area);
+  STATE.camping=null; STATE.area=null; STATE.answers={}; STATE.modal=null;
+  await refreshDrafts();
+  render();
+}
+
+async function startAudit(camping, area){
+  STATE.camping = camping;
+  STATE.area = area;
+  STATE.answers = {};
+  STATE.tab = 'audit';
+  const draft = await loadDraft(camping, area);
+  if(draft && draft.answers && Object.keys(draft.answers).length){
+    STATE.answers = draft.answers;
+    toast('Borrador recuperado');
+  }
+  render();
+  window.scrollTo({top:0, behavior:'instant'});
+}
+
+async function submitAudit(){
+  const btn = document.getElementById('submitAuditBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+  try{
+    const qs = QUESTIONS[STATE.area];
+    let si=0, no=0, na=0;
+    const answersArr = [];
+    qs.forEach(q=>{
+      const a = STATE.answers[q.n];
+      if(a && a.respuesta){
+        if(a.respuesta==='Si') si++;
+        else if(a.respuesta==='No') no++;
+        else if(a.respuesta==='No aplica') na++;
+        answersArr.push({n:q.n, categoria:q.categoria, pregunta:q.pregunta, respuesta:a.respuesta, comentario:a.comentario||''});
+      }
+    });
+
+    const record = {
+      id: slug(STATE.camping)+'__'+slug(STATE.area)+'__'+Date.now(),
+      camping: STATE.camping,
+      area: STATE.area,
+      manager: STATE.manager || 'Sin nombre',
+      ts: Date.now(),
+      date: new Date().toISOString(),
+      si, no, na,
+      total: qs.length,
+      answers: answersArr
+    };
+
+    await saveAuditRecord(record);
+
+    STATE.index.push({ id:record.id, camping:record.camping, area:record.area, manager:record.manager, ts:record.ts, si, no, na, total: qs.length });
+    await saveIndex();
+    await clearDraft(STATE.camping, STATE.area);
+
+    toast('Auditoría guardada ✓');
+    STATE.camping = null; STATE.area = null; STATE.answers = {}; STATE.pickCamping=null; STATE.pickArea=null;
+    STATE.tab = 'dashboard';
+    await refreshDrafts();
+    render();
+  }catch(err){
+    console.error('Error guardando auditoría:', err);
+    toast('⚠ Error al guardar: '+(err && err.message ? err.message : 'inténtalo de nuevo'));
+    if(btn){ btn.disabled = false; btn.textContent = 'Reintentar guardado'; }
+  }
+}
+
+// ===================== RENDER: MODALS =====================
+function renderModal(){
+  const backdrop = document.createElement('div');
+  backdrop.className='modal-backdrop';
+  backdrop.onclick = (e)=>{ if(e.target===backdrop){ STATE.modal=null; render(); } };
+
+  const modal = document.createElement('div');
+  modal.className='modal';
+
+  if(STATE.modal.type==='history' || STATE.modal.type==='campingHistory'){
+    const {camping} = STATE.modal;
+    const area = STATE.modal.area;
+    let entries = STATE.index.filter(e=>e.camping===camping && (area? e.area===area : true));
+    entries.sort((a,b)=>b.ts-a.ts);
+
+    modal.innerHTML = `<div class="modal-head">
+        <div><div class="card-title" style="margin-bottom:2px">${camping}${area?' · '+area:''}</div>
+        <div class="small-note" style="margin-top:0">${entries.length} auditoría(s) registrada(s)</div></div>
+        <button class="modal-close" id="closeModal">Cerrar</button>
+      </div>`;
+
+    if(STATE.modal.type==='campingHistory'){
+      const expBtn = document.createElement('button');
+      expBtn.className = 'btn btn-outline-amber';
+      expBtn.style.marginBottom = '14px';
+      expBtn.id = 'campExportBtn';
+      expBtn.textContent = '⬇ Descargar Excel de este camping';
+      expBtn.onclick = ()=> exportCampingExcel(camping, expBtn);
+      modal.appendChild(expBtn);
+    }
+
+    const list = document.createElement('div');
+    if(entries.length===0){
+      list.innerHTML = `<div class="empty-state"><div class="big">Sin auditorías todavía</div>Empieza una nueva desde la pestaña "Nueva auditoría".</div>`;
+    }
+    entries.forEach(e=>{
+      const v = e.si/((e.si+e.no)||1);
+      const row = document.createElement('div');
+      row.className='hist-row';
+      row.innerHTML = `
+        <div class="meta"><b>${e.area}</b><br>${new Date(e.ts).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'})} · ${e.manager}</div>
+        <div class="hist-score" style="background:${cellClass(v)==='cell-good'?'rgba(154,201,109,.2);color:var(--moss-bright)':cellClass(v)==='cell-mid'?'rgba(217,164,65,.2);color:var(--amber-bright)':'rgba(219,107,78,.2);color:var(--rust-bright)'}">${pct(v)}</div>
+      `;
+      row.onclick = async ()=>{
+        const rec = await fetchAuditRecord(e.id);
+        STATE.modal = {type:'detail', record: rec};
+        render();
+      };
+      list.appendChild(row);
+    });
+    modal.appendChild(list);
+  }
+
+  if(STATE.modal.type==='detail' && !STATE.modal.editing){
+    const r = STATE.modal.record;
+    modal.innerHTML = `<div class="modal-head">
+        <div><div class="card-title" style="margin-bottom:2px">${r.camping} · ${r.area}</div>
+        <div class="small-note" style="margin-top:0">${new Date(r.ts).toLocaleString('es-ES')}${r.updatedTs?' · editado '+new Date(r.updatedTs).toLocaleString('es-ES'):''} · Auditado por ${r.manager}</div></div>
+        <button class="modal-close" id="closeModal">Cerrar</button>
+      </div>`;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-outline-amber';
+    editBtn.style.marginBottom = '14px';
+    editBtn.textContent = '✎ Editar respuestas';
+    editBtn.onclick = ()=>{
+      const ansMap = {};
+      r.answers.forEach(a=>{ ansMap[a.n] = {respuesta:a.respuesta, comentario:a.comentario}; });
+      STATE.modal.editing = true;
+      STATE.modal.editAnswers = ansMap;
+      render();
+    };
+    modal.appendChild(editBtn);
+
+    const list = document.createElement('div');
+    r.answers.forEach(a=>{
+      const d = document.createElement('div');
+      d.className='detail-q';
+      const tagClass = a.respuesta==='Si'?'tag-si':a.respuesta==='No'?'tag-no':'tag-na';
+      const tagText = a.respuesta==='Si'?'SÍ':a.respuesta==='No'?'NO':'N/A';
+      d.innerHTML = `<div class="qt">${a.pregunta}</div><span class="detail-tag ${tagClass}">${tagText}</span>${a.comentario?`<div class="detail-comment">${a.comentario}</div>`:''}`;
+      list.appendChild(d);
+    });
+    modal.appendChild(list);
+  }
+
+  if(STATE.modal.type==='detail' && STATE.modal.editing){
+    const r = STATE.modal.record;
+    const qs = QUESTIONS[r.area];
+    const editAnswers = STATE.modal.editAnswers;
+
+    modal.innerHTML = `<div class="modal-head">
+        <div><div class="card-title" style="margin-bottom:2px">Editando: ${r.camping} · ${r.area}</div>
+        <div class="small-note" style="margin-top:0">Auditado por ${r.manager} el ${new Date(r.ts).toLocaleDateString('es-ES')}</div></div>
+        <button class="modal-close" id="closeModal">Cerrar</button>
+      </div>`;
+
+    const formWrap = document.createElement('div');
+    let lastCat = null;
+    qs.forEach(q=>{
+      if(q.categoria !== lastCat){
+        const h = document.createElement('div');
+        h.className='cat-heading';
+        h.textContent = q.categoria;
+        formWrap.appendChild(h);
+        lastCat = q.categoria;
+      }
+      formWrap.appendChild(renderEditableQuestionCard(q, editAnswers));
+    });
+    modal.appendChild(formWrap);
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex; gap:10px; margin-top:16px; position:sticky; bottom:0; background:var(--bg-alt); padding-top:10px;';
+    actions.innerHTML = `
+      <button class="btn btn-ghost" id="cancelEditBtn">Cancelar</button>
+      <button class="btn btn-primary" id="saveEditBtn">Guardar cambios</button>
+    `;
+    modal.appendChild(actions);
+
+    setTimeout(()=>{
+      document.getElementById('cancelEditBtn').onclick = ()=>{ STATE.modal.editing = false; render(); };
+      document.getElementById('saveEditBtn').onclick = ()=> saveEditedAudit(r, qs, editAnswers);
+    }, 0);
+  }
+
+  if(STATE.modal.type==='exitConfirm'){
+    const qs = QUESTIONS[STATE.area];
+    const answeredCount = qs.filter(q=>STATE.answers[q.n] && STATE.answers[q.n].respuesta).length;
+    modal.innerHTML = `<div class="modal-head">
+        <div><div class="card-title" style="margin-bottom:2px">Salir de la auditoría</div>
+        <div class="small-note" style="margin-top:0">${STATE.camping} · ${STATE.area} — has respondido ${answeredCount} de ${qs.length}. ¿Qué quieres hacer?</div></div>
+      </div>`;
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex; flex-direction:column; gap:10px; margin-top:6px;';
+    actions.innerHTML = `
+      <button class="btn btn-primary" id="exitSaveBtn">Guardar sin completar y salir</button>
+      <button class="btn btn-outline-amber" id="exitDiscardBtn" style="border-color:var(--rust-bright); color:var(--rust-bright);">Borrar lo hecho y salir</button>
+      <button class="btn btn-ghost" id="exitCancelBtn">Seguir editando</button>
+    `;
+    modal.appendChild(actions);
+    setTimeout(()=>{
+      document.getElementById('exitSaveBtn').onclick = exitSaveDraft;
+      document.getElementById('exitDiscardBtn').onclick = exitDiscard;
+      document.getElementById('exitCancelBtn').onclick = ()=>{ STATE.modal=null; render(); };
+    }, 0);
+  }
+
+  backdrop.appendChild(modal);
+  setTimeout(()=>{
+    const closeBtn = document.getElementById('closeModal');
+    if(closeBtn) closeBtn.onclick = ()=>{ STATE.modal=null; render(); };
+  }, 0);
+  return backdrop;
+}
+
+// ===================== INIT =====================
+(async function init(){
+  root.innerHTML = `<div class="empty-state"><div class="big">Cargando auditorías…</div></div>`;
+  await loadIndex();
+  await refreshDrafts();
+  render();
+})();
+
+</script>
+</body>
+</html>
